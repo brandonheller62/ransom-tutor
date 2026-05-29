@@ -1,0 +1,1726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Socratic AI Tutor</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f4f8fa;
+    --surface: #ffffff;
+    --surface-2: #e8f0f3;
+    --border: #cfdde3;
+    --text: #1a2e28;
+    --text-muted: #5a6b6b;
+    --accent: #2d6a4f;
+    --accent-hover: #38835f;
+    --accent-light: #b8d4dc;
+    --accent-light-2: #d8e8ed;
+    --user-bubble: #2d6a4f;
+    --tutor-bubble: #e8f0f3;
+    --shadow: 0 1px 3px rgba(30,80,60,0.04), 0 1px 2px rgba(30,80,60,0.06);
+    --shadow-hover: 0 4px 12px rgba(30,80,60,0.08), 0 2px 4px rgba(30,80,60,0.06);
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2.5rem; }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+
+  .logo { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
+  .logo-mark { width: 36px; height: 32px; display: flex; align-items: center; justify-content: center; font-family: 'Times New Roman', Georgia, serif; font-size: 1.5rem; font-weight: 700; line-height: 1; letter-spacing: -0.05em; }
+  .logo-mark .r-letter { color: #2d6a4f; }
+  .logo-mark .e-letter { color: #b8d4dc; }
+
+  .breadcrumbs { font-size: 0.875rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem; }
+  .breadcrumbs a { color: var(--text-muted); text-decoration: none; cursor: pointer; transition: color 0.15s; }
+  .breadcrumbs a:hover { color: var(--accent); }
+  .breadcrumbs .sep { color: var(--border); }
+
+  .page { display: none; animation: fadeIn 0.3s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .hero { text-align: center; padding: 2rem 0 3rem; }
+  .hero h1 { font-size: 2.5rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+  .hero p { color: var(--text-muted); font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+
+  .section-title { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 1rem; }
+
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.75rem; cursor: pointer; transition: all 0.2s ease; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); border-color: var(--accent); }
+
+  .card-icon { width: 40px; height: 40px; background: var(--accent-light); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; font-size: 1.25rem; }
+  .card-general { background: linear-gradient(135deg, var(--accent-light-2) 0%, var(--surface) 100%); border-color: var(--accent); }
+  .card-icon-general { background: var(--accent); color: white; font-weight: 700; }
+
+  .card-title { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.4rem; letter-spacing: -0.01em; }
+  .card-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+  .card-meta { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--text-muted); display: flex; justify-content: space-between; }
+
+  .page-header { margin-bottom: 2rem; }
+  .page-header h2 { font-size: 2rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.5rem; }
+  .page-header p { color: var(--text-muted); font-size: 1rem; }
+
+  .back-btn { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--text-muted); text-decoration: none; font-size: 0.9rem; margin-bottom: 1.5rem; cursor: pointer; transition: color 0.15s; background: none; border: none; padding: 0; font-family: inherit; }
+  .back-btn:hover { color: var(--accent); }
+
+  .chat-container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; height: calc(100vh - 220px); min-height: 500px; overflow: hidden; }
+
+  .chat-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; align-items: center; justify-content: space-between; }
+  .chat-header-info h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.15rem; }
+  .chat-header-info p { font-size: 0.8rem; color: var(--text-muted); }
+  .chat-header-actions { display: flex; gap: 0.5rem; }
+
+  .reset-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .reset-btn:hover { background: var(--surface); color: var(--text); border-color: var(--text-muted); }
+
+  .mode-controls { padding: 0.65rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .mode-group { display: flex; align-items: center; gap: 0.4rem; }
+  .control-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600; margin-right: 0.25rem; }
+  .mode-btn, .diff-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 0.3rem 0.7rem; border-radius: 6px; font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .mode-btn:hover, .diff-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .mode-btn.active, .diff-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .messages { flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+
+  .message { max-width: 75%; padding: 0.75rem 1rem; border-radius: 12px; font-size: 0.95rem; line-height: 1.55; animation: messageIn 0.25s ease; }
+  @keyframes messageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .message.user { align-self: flex-end; background: var(--user-bubble); color: white; border-bottom-right-radius: 4px; }
+  .message.tutor { align-self: flex-start; background: var(--tutor-bubble); color: var(--text); border-bottom-left-radius: 4px; }
+  .message.tutor.thinking { color: var(--text-muted); font-style: italic; }
+
+  .message.tutor p { margin: 0 0 0.6rem 0; }
+  .message.tutor p:last-child { margin-bottom: 0; }
+  .message.tutor strong { font-weight: 600; color: var(--accent); }
+  .message.tutor em { font-style: italic; }
+  .message.tutor ul, .message.tutor ol { margin: 0.4rem 0 0.6rem 1.4rem; padding: 0; }
+  .message.tutor li { margin-bottom: 0.2rem; }
+  .message.tutor code { background: rgba(45, 106, 79, 0.1); color: var(--accent); padding: 0.1rem 0.35rem; border-radius: 4px; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 0.88em; }
+  .message.tutor pre { background: #1a2e28; color: #e8f0f3; padding: 0.85rem 1rem; border-radius: 8px; overflow-x: auto; margin: 0.5rem 0; font-size: 0.85em; line-height: 1.5; }
+  .message.tutor pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; }
+  .message.tutor h1, .message.tutor h2, .message.tutor h3 { margin: 0.6rem 0 0.4rem 0; font-weight: 600; line-height: 1.3; }
+  .message.tutor h1 { font-size: 1.15rem; }
+  .message.tutor h2 { font-size: 1.05rem; }
+  .message.tutor h3 { font-size: 0.98rem; }
+  .message.tutor blockquote { border-left: 3px solid var(--accent-light); padding-left: 0.75rem; margin: 0.4rem 0; color: var(--text-muted); }
+  .message.tutor .katex { font-size: 1.05em; }
+  .message.tutor .katex-display { margin: 0.6rem 0; }
+
+  .typing-dots { display: inline-flex; gap: 3px; }
+  .typing-dots span { width: 6px; height: 6px; background: var(--text-muted); border-radius: 50%; animation: typingBounce 1.2s infinite; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+  .starter-prompts { padding: 0.65rem 1.5rem; border-top: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 0.45rem; flex-wrap: wrap; }
+  .starter-chip { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.4rem 0.75rem; border-radius: 999px; font-size: 0.8rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .starter-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light-2); }
+
+  .hint-controls { padding: 0.75rem 1.5rem; border-top: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .hint-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.4rem 0.85rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .hint-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .hint-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .image-preview { padding: 0 1.5rem; display: none; }
+  .image-preview.has-image { display: block; padding: 0.75rem 1.5rem 0; }
+  .image-preview-inner { position: relative; display: inline-block; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+  .image-preview-inner img { display: block; max-width: 200px; max-height: 120px; object-fit: cover; }
+  .image-preview-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; line-height: 1; }
+  .image-preview-remove:hover { background: rgba(0,0,0,0.85); }
+
+  .message img.user-attached { max-width: 100%; border-radius: 6px; margin-bottom: 0.5rem; display: block; }
+
+  .resumed-indicator { text-align: center; font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem; border-bottom: 1px dashed var(--border); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .input-area { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; align-items: flex-end; }
+  .input-area textarea { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; font-family: inherit; font-size: 0.95rem; resize: none; outline: none; background: var(--surface); color: var(--text); transition: border 0.15s; max-height: 150px; min-height: 44px; }
+  .input-area textarea:focus { border-color: var(--accent); }
+  .attach-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); width: 44px; height: 44px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+  .attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .send-btn { background: var(--accent); color: white; border: none; padding: 0 1.25rem; height: 44px; border-radius: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .empty-units { background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
+  .badge { display: inline-block; background: var(--surface-2); color: var(--text-muted); font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  /* ===== Stats bar (home + class pages) ===== */
+  .stats-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; box-shadow: var(--shadow); display: flex; gap: 1.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 2rem; }
+  .stat { display: flex; align-items: center; gap: 0.6rem; }
+  .stat-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--accent-light-2); font-size: 1.1rem; flex-shrink: 0; }
+  .stat-icon.flame { background: #fef3e8; }
+  .stat-body { display: flex; flex-direction: column; line-height: 1.2; }
+  .stat-value { font-size: 1.05rem; font-weight: 600; color: var(--text); }
+  .stat-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.1rem; }
+  .stat-divider { width: 1px; align-self: stretch; background: var(--border); }
+  .goal-bar-wrap { flex: 1; min-width: 140px; }
+  .goal-bar-track { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 0.4rem; }
+  .goal-bar-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.4s ease; }
+  .goal-edit-btn { background: transparent; border: none; color: var(--text-muted); font-size: 0.75rem; cursor: pointer; font-family: inherit; padding: 0.2rem 0.4rem; border-radius: 4px; }
+  .goal-edit-btn:hover { color: var(--accent); background: var(--surface-2); }
+
+  /* ===== Mastery ring on unit cards ===== */
+  .card { display: flex; flex-direction: column; }
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+  .card-text { flex: 1; min-width: 0; }
+  .ring-wrap { width: 44px; height: 44px; flex-shrink: 0; position: relative; }
+  .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: var(--surface-2); stroke-width: 4; }
+  .ring-fill { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
+  .ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; color: var(--text-muted); }
+  .ring-label.complete { color: var(--accent); }
+  .last-visited { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem; }
+
+  /* ===== Modal (recap + goal edit) ===== */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 35, 30, 0.45); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; animation: fadeIn 0.2s ease; }
+  .modal { background: var(--surface); border-radius: 14px; max-width: 440px; width: 100%; padding: 1.75rem; box-shadow: 0 20px 50px rgba(15,35,30,0.2); animation: modalIn 0.25s ease; }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .modal h3 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 0.35rem; }
+  .modal p.modal-sub { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
+  .recap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem; }
+  .recap-tile { background: var(--surface-2); border-radius: 8px; padding: 0.85rem; }
+  .recap-tile-value { font-size: 1.4rem; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .recap-tile-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.15rem; }
+  .recap-mastery-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; background: linear-gradient(135deg, var(--accent-light-2) 0%, var(--surface) 100%); border: 1px solid var(--accent-light); border-radius: 8px; margin-bottom: 1.25rem; }
+  .recap-mastery-delta { font-size: 1.05rem; font-weight: 600; color: var(--accent); }
+  .recap-mastery-text { font-size: 0.85rem; color: var(--text); }
+  .modal-actions { display: flex; gap: 0.6rem; justify-content: flex-end; }
+  .modal-btn { padding: 0.55rem 1rem; border-radius: 8px; font-family: inherit; font-size: 0.88rem; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: all 0.15s; }
+  .modal-btn:hover { border-color: var(--text-muted); }
+  .modal-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .modal-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .goal-input { width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; margin-bottom: 1.25rem; }
+  .goal-input:focus { border-color: var(--accent); }
+
+  /* ===== Solved/skip buttons in chat ===== */
+  .hint-btn.solved { background: var(--accent); color: white; border-color: var(--accent); }
+  .hint-btn.solved:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: white; }
+  .session-toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: var(--text); color: white; padding: 0.7rem 1.1rem; border-radius: 999px; font-size: 0.85rem; box-shadow: 0 8px 24px rgba(0,0,0,0.18); z-index: 90; animation: toastIn 0.25s ease; }
+  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  /* ===== Unit view tab bar ===== */
+  .unit-view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
+  .unit-view-header .back-btn { margin-bottom: 0; }
+  .unit-tab-bar { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 0.25rem; gap: 0.2rem; }
+  .unit-tab { background: transparent; border: none; padding: 0.4rem 1.1rem; border-radius: 7px; font-family: inherit; font-size: 0.875rem; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: all 0.18s; }
+  .unit-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(30,80,60,0.1); }
+  .unit-tab:hover:not(.active) { color: var(--text); }
+
+  /* ===== Practice Quiz ===== */
+  .quiz-topbar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .quiz-pill-group { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.2rem; gap: 0.2rem; }
+  .quiz-pill-btn { background: transparent; border: none; padding: 0.3rem 0.8rem; border-radius: 6px; font-family: inherit; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.15s; letter-spacing: 0.01em; }
+  .quiz-pill-btn.active { background: var(--accent); color: white; }
+  .quiz-pill-btn:hover:not(.active) { color: var(--text); }
+  .quiz-score-area { margin-left: auto; display: flex; align-items: center; gap: 0.6rem; }
+  .quiz-score-label { font-size: 0.85rem; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .quiz-score-track { width: 100px; height: 5px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
+  .quiz-score-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.4s ease; }
+
+  .quiz-start-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 3.5rem 2rem; text-align: center; box-shadow: var(--shadow); }
+  .quiz-start-card h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.6rem; }
+  .quiz-start-card p { color: var(--text-muted); font-size: 0.95rem; max-width: 380px; margin: 0 auto 2rem; }
+  .quiz-begin-btn { background: var(--accent); color: white; border: none; padding: 0.8rem 2.2rem; border-radius: 10px; font-family: inherit; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .quiz-begin-btn:hover { background: var(--accent-hover); }
+
+  .quiz-loading-state { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 3rem 2rem; text-align: center; box-shadow: var(--shadow); color: var(--text-muted); }
+  .quiz-loading-state p { margin-top: 0.85rem; font-size: 0.9rem; }
+
+  .quiz-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; box-shadow: var(--shadow); animation: fadeIn 0.25s ease; }
+  .quiz-q-meta { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; }
+  .quiz-q-num { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+  .quiz-q-dot { width: 3px; height: 3px; background: var(--border); border-radius: 50%; flex-shrink: 0; }
+  .quiz-q-topic { font-size: 0.78rem; color: var(--text-muted); }
+  .quiz-question { font-size: 1.05rem; line-height: 1.65; color: var(--text); margin-bottom: 1.5rem; }
+  .quiz-question p { margin-bottom: 0.5rem; }
+  .quiz-question p:last-child { margin-bottom: 0; }
+  .quiz-question strong { font-weight: 600; }
+  .quiz-question .katex { font-size: 1.05em; }
+  .quiz-question .katex-display { margin: 0.75rem 0; }
+
+  .quiz-choices { display: flex; flex-direction: column; gap: 0.55rem; }
+  .quiz-choice { display: flex; align-items: baseline; gap: 0.75rem; background: var(--surface); border: 1.5px solid var(--border); color: var(--text); padding: 0.85rem 1.1rem; border-radius: 10px; font-size: 0.95rem; cursor: pointer; font-family: inherit; transition: border-color 0.15s, background 0.15s; text-align: left; width: 100%; }
+  .quiz-choice:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-light-2); }
+  .quiz-choice:disabled { cursor: not-allowed; }
+  .quiz-choice-ltr { font-weight: 700; color: var(--text-muted); flex-shrink: 0; width: 1.25rem; transition: color 0.15s; }
+  .quiz-choice-text .katex { font-size: 0.95em; }
+  .quiz-choice.correct { border-color: var(--accent); background: #e8f5ed; }
+  .quiz-choice.correct .quiz-choice-ltr { color: var(--accent); }
+  .quiz-choice.incorrect { border-color: #c0392b; background: #fef0ef; }
+  .quiz-choice.incorrect .quiz-choice-ltr { color: #c0392b; }
+
+  .quiz-feedback { margin-top: 1.25rem; padding: 1rem 1.25rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.6; animation: fadeIn 0.2s ease; }
+  .quiz-feedback.correct { background: #e8f5ed; border: 1px solid #b5d9c1; }
+  .quiz-feedback.incorrect { background: #fef0ef; border: 1px solid #f5bdb9; }
+  .quiz-feedback-verdict { font-weight: 700; margin-bottom: 0.4rem; font-size: 0.95rem; }
+  .quiz-feedback.correct .quiz-feedback-verdict { color: var(--accent); }
+  .quiz-feedback.incorrect .quiz-feedback-verdict { color: #c0392b; }
+  .quiz-feedback p { margin: 0.3rem 0 0; }
+  .quiz-feedback strong { color: var(--accent); }
+  .quiz-feedback .katex { font-size: 1em; }
+
+  .quiz-frq-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.5rem; display: block; }
+  .quiz-frq-textarea { width: 100%; padding: 0.85rem 1rem; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 0.87rem; resize: vertical; min-height: 150px; outline: none; background: var(--surface); color: var(--text); transition: border-color 0.15s; line-height: 1.6; }
+  .quiz-frq-textarea:focus { border-color: var(--accent); }
+  .quiz-frq-feedback { margin-top: 1.25rem; padding: 1.25rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem; line-height: 1.7; animation: fadeIn 0.2s ease; }
+  .quiz-frq-feedback strong { color: var(--accent); }
+  .quiz-frq-feedback .katex { font-size: 1em; }
+  .quiz-frq-feedback p { margin-bottom: 0.4rem; }
+  .quiz-frq-feedback p:last-child { margin-bottom: 0; }
+
+  .quiz-action-row { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; }
+  .quiz-submit-btn { background: var(--accent); color: white; border: none; padding: 0.65rem 1.4rem; border-radius: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .quiz-submit-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .quiz-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .quiz-next-btn { background: var(--accent); color: white; border: none; padding: 0.65rem 1.4rem; border-radius: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .quiz-next-btn:hover { background: var(--accent-hover); }
+
+  @media (max-width: 640px) {
+    .container { padding: 1rem; }
+    .hero h1 { font-size: 1.85rem; }
+    .page-header h2 { font-size: 1.5rem; }
+    .message { max-width: 90%; }
+    .chat-container { height: calc(100vh - 180px); }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .breadcrumbs { font-size: 0.8rem; flex-wrap: wrap; }
+    .unit-view-header { flex-direction: column; align-items: flex-start; }
+    .quiz-topbar { flex-direction: column; align-items: flex-start; }
+    .quiz-score-area { margin-left: 0; }
+    .quiz-score-track { width: 80px; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-inner">
+        <div class="logo" onclick="goHome()">
+          <div class="logo-mark"><span class="r-letter">R</span><span class="e-letter">E</span></div>
+          <span>Socratic Tutor</span>
+        </div>
+        <div class="breadcrumbs" id="breadcrumbs">
+          <a onclick="goHome()">Home</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="page active" id="page-home">
+      <div class="hero">
+        <h1>Learn by asking better questions.</h1>
+        <p>Pick a class to start a guided practice session. The tutor leads you through problems with hints, never just answers.</p>
+      </div>
+      <div class="stats-bar" id="stats-bar-home"></div>
+      <div class="section-title">Classes</div>
+      <div class="cards-grid" id="class-grid"></div>
+    </div>
+
+    <div class="page" id="page-class">
+      <button class="back-btn" onclick="goHome()">← Back to classes</button>
+      <div class="page-header">
+        <h2 id="class-title"></h2>
+        <p id="class-desc"></p>
+      </div>
+      <div class="section-title">Units</div>
+      <div class="cards-grid" id="unit-grid"></div>
+    </div>
+
+    <div class="page" id="page-unit">
+      <div class="unit-view-header">
+        <button class="back-btn" onclick="goBackToClass()">← Back to units</button>
+        <div class="unit-tab-bar" id="unit-tab-bar" style="display:none;">
+          <button class="unit-tab active" data-view="chat" onclick="switchUnitTab('chat')">Chat Tutor</button>
+          <button class="unit-tab" data-view="practice" onclick="switchUnitTab('practice')">Practice Quiz</button>
+        </div>
+      </div>
+
+      <!-- Chat view -->
+      <div id="chat-view">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div class="chat-header-info">
+              <h3 id="unit-title"></h3>
+              <p id="unit-class-label"></p>
+            </div>
+            <div class="chat-header-actions">
+              <button class="reset-btn" onclick="exportChat()" title="Export conversation">Export</button>
+              <button class="reset-btn" onclick="resetChat()">Reset</button>
+            </div>
+          </div>
+
+          <div class="mode-controls" id="mode-controls">
+            <div class="mode-group">
+              <span class="control-label">Mode:</span>
+              <button class="mode-btn active" data-mode="tutor" onclick="setMode('tutor')">Socratic Tutor</button>
+              <button class="mode-btn" data-mode="checker" onclick="setMode('checker')">Solution Checker</button>
+            </div>
+            <div class="mode-group">
+              <span class="control-label">Difficulty:</span>
+              <button class="diff-btn" data-diff="warmup" onclick="setDifficulty('warmup')">Warm-up</button>
+              <button class="diff-btn active" data-diff="standard" onclick="setDifficulty('standard')">Standard</button>
+              <button class="diff-btn" data-diff="challenge" onclick="setDifficulty('challenge')">Challenge</button>
+            </div>
+          </div>
+
+          <div class="messages" id="messages"></div>
+          <div class="starter-prompts" id="starter-prompts"></div>
+
+          <div class="hint-controls" id="hint-controls">
+            <button class="hint-btn" onclick="askForHint('small')">Smaller hint</button>
+            <button class="hint-btn" onclick="askForHint('big')">Bigger hint</button>
+            <button class="hint-btn" id="answer-btn" onclick="askForHint('answer')" disabled title="Try 2 hints first">Show me the answer</button>
+            <button class="hint-btn solved" onclick="markSolved()">✓ I solved it</button>
+            <button class="hint-btn" onclick="newProblem()">New problem</button>
+          </div>
+
+          <div class="image-preview" id="image-preview"></div>
+
+          <div class="input-area">
+            <button class="attach-btn" onclick="document.getElementById('image-input').click()" title="Attach image">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+            </button>
+            <input type="file" id="image-input" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+            <textarea id="user-input" placeholder="Type your answer or thought..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+            <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practice Quiz view -->
+      <div id="practice-view" style="display:none;">
+        <div class="quiz-topbar">
+          <div class="quiz-pill-group">
+            <button class="quiz-pill-btn active" data-pmode="mcq" onclick="setPracticeMode('mcq')">MCQ</button>
+            <button class="quiz-pill-btn" data-pmode="frq" onclick="setPracticeMode('frq')">FRQ</button>
+          </div>
+          <div class="quiz-pill-group">
+            <button class="quiz-pill-btn" data-pdiff="warmup" onclick="setPracticeDiff('warmup')">Warm-up</button>
+            <button class="quiz-pill-btn active" data-pdiff="standard" onclick="setPracticeDiff('standard')">Standard</button>
+            <button class="quiz-pill-btn" data-pdiff="challenge" onclick="setPracticeDiff('challenge')">Challenge</button>
+          </div>
+          <div class="quiz-score-area">
+            <span id="quiz-score-label" class="quiz-score-label">0 / 0</span>
+            <div class="quiz-score-track"><div id="quiz-score-fill" class="quiz-score-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <div id="quiz-start" class="quiz-start-card">
+          <h2>Ready to practice?</h2>
+          <p>Test your knowledge with AI-generated questions unique to this unit.</p>
+          <button class="quiz-begin-btn" onclick="beginQuiz()">Start Practice →</button>
+        </div>
+
+        <div id="quiz-loading" class="quiz-loading-state" style="display:none;">
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+          <p>Generating question...</p>
+        </div>
+
+        <div id="quiz-mcq-card" class="quiz-card" style="display:none;">
+          <div class="quiz-q-meta">
+            <span id="quiz-q-num" class="quiz-q-num">Q1</span>
+            <span class="quiz-q-dot"></span>
+            <span id="quiz-q-topic" class="quiz-q-topic"></span>
+          </div>
+          <div class="quiz-question" id="quiz-question"></div>
+          <div class="quiz-choices" id="quiz-choices"></div>
+          <div class="quiz-feedback" id="quiz-mcq-feedback" style="display:none;"></div>
+          <div class="quiz-action-row" id="quiz-mcq-next" style="display:none;">
+            <button class="quiz-next-btn" onclick="nextQuizQuestion()">Next Question →</button>
+          </div>
+        </div>
+
+        <div id="quiz-frq-card" class="quiz-card" style="display:none;">
+          <div class="quiz-q-meta">
+            <span id="frq-q-num" class="quiz-q-num">Q1</span>
+            <span class="quiz-q-dot"></span>
+            <span id="frq-q-topic" class="quiz-q-topic"></span>
+          </div>
+          <div class="quiz-question" id="frq-question"></div>
+          <div id="frq-answer-section">
+            <label class="quiz-frq-label">Your Response</label>
+            <textarea id="frq-answer-input" class="quiz-frq-textarea" placeholder="Show all work. Include equations, steps, and units..."></textarea>
+            <div class="quiz-action-row">
+              <button class="quiz-submit-btn" id="frq-submit-btn" onclick="submitFRQQuiz()">Submit for Grading</button>
+            </div>
+          </div>
+          <div id="frq-grading-indicator" style="display:none; text-align:center; padding:1.25rem 0; color:var(--text-muted);">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+            <p style="margin-top:0.6rem; font-size:0.85rem;">Grading your response...</p>
+          </div>
+          <div class="quiz-frq-feedback" id="quiz-frq-feedback" style="display:none;"></div>
+          <div class="quiz-action-row" id="quiz-frq-next" style="display:none;">
+            <button class="quiz-next-btn" onclick="nextQuizQuestion()">Next Question →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+
+<script>
+  const classes = {
+    physics: {
+      title: "Advanced Physics: Mechanics",
+      icon: "\u269B\uFE0E",
+      desc: "Algebra-based mechanics covering kinematics, forces, energy, momentum, fluids, and waves.",
+      tagline: "Newtonian mechanics with rigorous problem-solving and real-world applications.",
+      syllabus: "Course: Advanced Physics: Mechanics (SCI 514)\nYear: 2025-2026\nTeacher: Mr. Luis Luis Fayat (lluisfayat@ransomeverglades.org)\nRoom: STEM 105 (Office Hours: STEM 205)\n\nCourse Description: Equivalent to a first-semester, algebra-based college physics course. Covers Newtonian mechanics including kinematics, forces, energy, momentum, fluids, and waves with rigorous conceptual understanding and higher-level mathematics.\n\nAP Physics 1 Note: This course is NOT designed to prepare students for the AP Physics 1 exam. Students may register for the exam but should expect independent study.\n\nGRADING BREAKDOWN (90% of semester grade, EoS assessment is the other 10%):\n- Assessments: 50% (tests, including 1+ multi-unit project per semester counted as a test grade; reassessments available)\n- Labs: 20% (1-2 labs per unit, weekly hands-on work)\n- Quizzes: 20% (check-ins 1-2 times per unit)\n- Assignments: 10% (practice problems, review questions, group work)\n\nTwo semesters and their EoS assessments weigh equally for the final course grade.\n\nRequired Textbook: Physics, Advanced Edition w/WileyPLUS (11th Edition), Cutnell & Johnson (e-book only)\n\nCourse Tools: OneNote, Microsoft Teams, Pivot Interactives, WileyPlus, myCompass\n\nRequired Materials: Pencils/pens/stylus, physical notebook, scientific or graphing calculator, fully charged laptop\n\nPOLICIES:\n- Late assignments: 10% penalty; minimum grade of 50% for completed late work that meets basic expectations\n- Test reassessments: Available for grades below C (73). Must schedule within one week and bring evidence of extra preparation. Grade raised to 73 after instructor review.\n- Missed assessments: Planned absences require prior notification; unexpected absences need prompt communication\n- Cell phones: Collected and stored at start of class, returned at end\n- Flinn Scientific Student Safety Contract required for all labs\n\nAI POLICY (three-tier system):\n- Red (Human-Only Zone): No AI use permitted\n- Yellow (Guided Use Only): AI as assistant, specific components only as defined by instructor\n- Green (Open Use with Accountability): AI as collaborator with full transparency and acknowledgment\n\nCOURSE TOPICS: Conversions and Measurements, Vectors and Scalars, Forces and Newton's Laws, Kinematics (1-D and 2-D), Work and Energy, Momentum and Collisions, Simple Harmonic Motion, Circular Motion and Gravitation, Fluids, Waves and Sound\n\nCONDUCT PRINCIPLES: Be honest and forthright; be present and engaged; be empathetic and understanding; be respectful and considerate; be grateful and positive.",
+      units: [
+        { id: "p1", title: "Conversions & Measurements", desc: "Units, dimensional analysis, significant figures, and uncertainty." },
+        { id: "p2", title: "Vectors and Scalars", desc: "Vector components, addition, and decomposition in 2D." },
+        { id: "p3", title: "Kinematics (1-D & 2-D)", desc: "Motion with constant acceleration, projectile motion, and relative velocity." },
+        { id: "p4", title: "Forces and Newton's Laws", desc: "Free-body diagrams, friction, tension, and inclined planes." },
+        { id: "p5", title: "Work & Energy", desc: "Work-energy theorem, conservation of energy, and power." },
+        { id: "p6", title: "Momentum & Collisions", desc: "Impulse, conservation of momentum, elastic and inelastic collisions." },
+        { id: "p7", title: "Circular Motion & Gravitation", desc: "Centripetal acceleration, orbits, and Newton's law of gravitation." },
+        { id: "p8", title: "Simple Harmonic Motion", desc: "Springs, pendulums, and oscillatory motion." },
+        { id: "p9", title: "Fluids", desc: "Pressure, buoyancy, Bernoulli's equation, and fluid dynamics." },
+        { id: "p10", title: "Waves & Sound", desc: "Wave properties, superposition, standing waves, and the Doppler effect." }
+      ]
+    },
+    datascience: {
+      title: "Applied Data Science",
+      icon: "\u25CE",
+      desc: "Python-based data analysis, visualization, and machine learning with real-world datasets.",
+      tagline: "From pandas and plotting to scikit-learn and capstone projects.",
+      syllabus: "Course: Applied Data Science (2025-2026)\nTeacher: Mr. Eugene Cruz (ecruz@ransomeverglades.org)\nClassroom: STEM 319 (Period 7) or STEM 304 (Period 6)\nOffice: STEM 205\n\nCourse Description: Introduces the emerging interdisciplinary field of data science, using the scientific method and algorithms to extract knowledge, trends, and patterns from data. Covers statistics, information visualization, text analysis, machine learning, and social network analysis. Starts with introductory Python for data science, progresses through pandas and visualization libraries, and concludes Semester 2 with scikit-learn machine learning, Kaggle competitions, and a capstone project.\n\nCOURSE OUTLINE:\nSemester 1: Introduction to Data Science\n- Unit 1: Introduction to Data Science Principles\n- Unit 2: Data Analysis with Python\n- Unit 3: Applied Plotting, Charting and Data Representation in Python\n- Unit 4: Storytelling with Data: Concepts of Data Visualization\n- Unit 5: Interactive Python Dashboards\n\nSemester 2: Capstone Project\n- Unit 6: Applied Machine Learning in Python\n- Unit 7: RE Project (interdisciplinary project on Ransom Everglades)\n- Unit 8: Kaggle Competitions\n- Unit 9: Final Project\n\nGRADING (points-based):\n- Projects (Individual and Group): 100 points each\n- In-class work, homework, mini-quizzes, participation: 1-20 points each depending on scope\n- Each unit usually has a MiniQuiz\n\nKEY TEXTS (online and free, with print options):\n- Python Data Science Handbook (VanderPlas)\n- Hands-On Machine Learning with Scikit-Learn and TensorFlow (Geron)\n- Introduction to Machine Learning with Python\n- Python for Data Analysis (Pandas, NumPy, IPython)\n- Pandas for Everyone\n- Storytelling with Data\n- The Truthful Art\n\nWEB RESOURCES: GitHub, Stack Overflow, Kaggle, data.gov, Springboard public datasets\n\nPOLICIES:\n- Extra help: Most mornings (except Thurs/Fri), unscheduled periods 3/5/8, after school until 4:00 PM. Schedule a time if needed.\n- Assignments and due dates posted on MyCOMPASS. Major assessments posted 7+ days in advance, smaller tasks 48+ hours in advance.\n- Late work: 10% penalty per day without an extension. Minimum grade for completed late work is 50%. Zero only if no evidence of learning before the class moves on. Major assignments must be completed to earn credit.\n- Planned absences require prior communication; unexcused absences follow late work penalties.\n\nACADEMIC INTEGRITY: Honor Code applies. Unauthorized AI use is prohibited. AI use defined per assignment using the Red/Yellow/Green system:\n- Red: No AI\n- Yellow: Guided/cited AI use\n- Green: Open AI use with accountability\nAll AI use must be disclosed and cited.",
+      units: [
+        { id: "d1", title: "Unit 1: Intro to Data Science Principles", desc: "Foundational concepts, the data science workflow, and Python basics." },
+        { id: "d2", title: "Unit 2: Data Analysis with Python", desc: "Pandas, NumPy, data cleaning, and exploratory analysis." },
+        { id: "d3", title: "Unit 3: Plotting, Charting & Data Representation", desc: "Matplotlib, Seaborn, and effective chart construction in Python." },
+        { id: "d4", title: "Unit 4: Storytelling with Data", desc: "Visualization principles, narrative structure, and communicating insights." },
+        { id: "d5", title: "Unit 5: Interactive Python Dashboards", desc: "Building interactive visualizations and dashboards." },
+        { id: "d6", title: "Unit 6: Applied Machine Learning in Python", desc: "scikit-learn, supervised learning, model evaluation, and tuning." },
+        { id: "d7", title: "Unit 7: RE Project", desc: "Interdisciplinary data project focused on Ransom Everglades." },
+        { id: "d8", title: "Unit 8: Kaggle Competitions", desc: "Competitive ML, feature engineering, and collaborative problem-solving." },
+        { id: "d9", title: "Unit 9: Final Project", desc: "Semester-long capstone on a topic of your choice." }
+      ]
+    }
+  };
+
+  const starterPromptsByUnit = {
+    p1: ["Give me a unit conversion problem", "Quiz me on significant figures", "Explain dimensional analysis", "Why do we use SI units?"],
+    p2: ["Give me a vector addition problem", "How do I decompose a vector into components?", "Practice problem with vector subtraction", "What is the difference between a scalar and vector?"],
+    p3: ["Give me a kinematics problem", "Quiz me on projectile motion", "Practice with the kinematic equations", "Explain relative velocity"],
+    p4: ["Give me a free-body diagram problem", "Practice with friction", "Inclined plane problem please", "Explain Newton's third law"],
+    p5: ["Give me a work-energy problem", "Quiz me on conservation of energy", "Practice with the work-energy theorem", "Explain the difference between work and power"],
+    p6: ["Give me a momentum problem", "Practice with elastic collisions", "Quiz me on impulse", "Explain conservation of momentum"],
+    p7: ["Give me a circular motion problem", "Practice with centripetal force", "Orbital mechanics problem please", "Derive the formula for centripetal acceleration"],
+    p8: ["Give me a SHM problem", "Practice with springs and Hooke's law", "Quiz me on pendulum motion", "Explain why SHM happens"],
+    p9: ["Give me a buoyancy problem", "Practice with Bernoulli's equation", "Pressure problem please", "Explain Pascal's principle"],
+    p10: ["Give me a wave problem", "Practice with the Doppler effect", "Quiz me on standing waves", "Explain superposition"],
+    d1: ["What is the data science workflow?", "Explain the difference between supervised and unsupervised learning", "Give me a Python practice problem", "What is the role of statistics in DS?"],
+    d2: ["Give me a pandas DataFrame problem", "Practice with groupby operations", "How do I handle missing data?", "Quiz me on NumPy basics"],
+    d3: ["Give me a matplotlib challenge", "When should I use a bar chart vs line chart?", "Practice with seaborn", "Explain figure vs axes in matplotlib"],
+    d4: ["What makes a chart misleading?", "Critique a visualization for me", "Practice telling a story with data", "Explain the principles of good viz design"],
+    d5: ["Help me think through a dashboard design", "Plotly vs Dash, what is the difference?", "Give me an interactive viz challenge", "Practice with widget callbacks"],
+    d6: ["Give me a classification problem", "Practice with train/test splits", "Quiz me on overfitting", "How do I choose a model?"],
+    d7: ["Help me brainstorm a project on RE data", "What questions could I ask about RE?", "How do I scope a data project?", "Practice with project planning"],
+    d8: ["Give me Kaggle competition strategy tips", "Practice with feature engineering", "How do I avoid leakage?", "Explain ensemble methods"],
+    d9: ["Help me scope my final project", "How do I present data findings?", "Practice with project planning", "What makes a good capstone?"]
+  };
+
+  let currentClass = null;
+  let currentUnit = null;
+  let currentDifficulty = "standard";
+  let currentMode = "tutor";
+  let conversation = [];
+  let attachedImage = null;
+  let sessionState = null; // { startedAt, problemsAttempted, hintsUsed, startMastery, counted }
+  let hintsThisProblem = 0;
+
+  // ============ Practice Quiz state ============
+  let activeUnitView = "chat";
+  let practiceMode = "mcq";
+  let practiceDiff = "standard";
+  let quizSession = { total: 0, correct: 0 };
+  let currentQuizData = null;
+  let quizQuestionNum = 0;
+  let _lastPracticeUnit = null;
+
+  function updateAnswerBtn() {
+    const btn = document.getElementById("answer-btn");
+    if (!btn) return;
+    if (hintsThisProblem >= 2) {
+      btn.disabled = false;
+      btn.removeAttribute("title");
+    } else {
+      btn.disabled = true;
+      btn.title = "Try " + (2 - hintsThisProblem) + " more hint" + (2 - hintsThisProblem === 1 ? "" : "s") + " first";
+    }
+  }
+
+  function resetProblemCounter() {
+    hintsThisProblem = 0;
+    updateAnswerBtn();
+  }
+
+  // ============ Progress System ============
+  const PROGRESS_KEY = "socratic_progress_v1";
+
+  function loadProgress() {
+    try {
+      const raw = localStorage.getItem(PROGRESS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {
+      streak: { lastStudyDate: null, currentStreak: 0, longestStreak: 0 },
+      weeklyGoal: { target: 3, weekStart: getWeekStart(), sessionsThisWeek: 0 },
+      units: {},
+      totalProblems: 0
+    };
+  }
+
+  function saveProgress(p) {
+    try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) {}
+  }
+
+  let progress = loadProgress();
+
+  function getWeekStart() {
+    const d = new Date();
+    const day = d.getDay(); // 0=Sun
+    const diff = day === 0 ? 6 : day - 1; // make Monday week-start
+    d.setDate(d.getDate() - diff);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  function rollWeekIfNeeded() {
+    const ws = getWeekStart();
+    if (progress.weeklyGoal.weekStart !== ws) {
+      progress.weeklyGoal.weekStart = ws;
+      progress.weeklyGoal.sessionsThisWeek = 0;
+      saveProgress(progress);
+    }
+  }
+
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + "-" + (d.getMonth()+1) + "-" + d.getDate();
+  }
+
+  function daysBetween(a, b) {
+    const ms = 1000*60*60*24;
+    const da = new Date(a); da.setHours(0,0,0,0);
+    const db = new Date(b); db.setHours(0,0,0,0);
+    return Math.round((db - da) / ms);
+  }
+
+  function getUnitKey(classKey, unitId) { return classKey + "_" + unitId; }
+
+  function getUnitStats(classKey, unitId) {
+    const k = getUnitKey(classKey, unitId);
+    return progress.units[k] || { problemsAttempted: 0, problemsSolved: 0, hintsUsed: 0, lastVisited: null, masteryScore: 0 };
+  }
+
+  function setUnitStats(classKey, unitId, stats) {
+    progress.units[getUnitKey(classKey, unitId)] = stats;
+    saveProgress(progress);
+  }
+
+  function computeMastery(stats) {
+    let score = 0;
+    score += Math.min(stats.problemsAttempted * 8, 60);
+    score += Math.min(stats.problemsSolved * 6, 30);
+    score -= Math.min(stats.hintsUsed * 1, 15);
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  function relativeTime(ts) {
+    const days = daysBetween(ts, Date.now());
+    if (days === 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7) return days + " days ago";
+    if (days < 30) return Math.floor(days/7) + "w ago";
+    return Math.floor(days/30) + "mo ago";
+  }
+
+  function renderRing(percent) {
+    const r = 18, c = 2 * Math.PI * r;
+    const dash = (percent / 100) * c;
+    const complete = percent >= 100 ? ' complete' : '';
+    const label = percent >= 100 ? '✓' : percent + '';
+    return '<div class="ring-wrap">' +
+      '<svg viewBox="0 0 44 44">' +
+        '<circle class="ring-track" cx="22" cy="22" r="' + r + '"></circle>' +
+        '<circle class="ring-fill" cx="22" cy="22" r="' + r + '" stroke-dasharray="' + dash + ' ' + c + '"></circle>' +
+      '</svg>' +
+      '<div class="ring-label' + complete + '">' + label + '</div>' +
+    '</div>';
+  }
+
+  function renderStatsBar() {
+    rollWeekIfNeeded();
+    const bar = document.getElementById("stats-bar-home");
+    if (!bar) return;
+    const s = progress.streak;
+    const g = progress.weeklyGoal;
+    const pct = Math.min(100, Math.round((g.sessionsThisWeek / g.target) * 100));
+    bar.innerHTML =
+      '<div class="stat" title="Longest streak: ' + s.longestStreak + ' days">' +
+        '<div class="stat-icon flame">🔥</div>' +
+        '<div class="stat-body">' +
+          '<div class="stat-value">' + s.currentStreak + ' day' + (s.currentStreak === 1 ? '' : 's') + '</div>' +
+          '<div class="stat-label">Streak</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="stat-divider"></div>' +
+      '<div class="stat" style="flex:1;min-width:200px;">' +
+        '<div class="stat-icon">🎯</div>' +
+        '<div class="stat-body" style="flex:1;">' +
+          '<div style="display:flex;align-items:center;gap:0.5rem;">' +
+            '<span class="stat-value">' + g.sessionsThisWeek + ' / ' + g.target + ' sessions</span>' +
+            '<button class="goal-edit-btn" onclick="openGoalModal()">edit</button>' +
+          '</div>' +
+          '<div class="goal-bar-track"><div class="goal-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="stat-divider"></div>' +
+      '<div class="stat">' +
+        '<div class="stat-icon">📚</div>' +
+        '<div class="stat-body">' +
+          '<div class="stat-value">' + (progress.totalProblems || 0) + '</div>' +
+          '<div class="stat-label">Problems all-time</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ============ Session tracking ============
+  function startSessionIfNeeded() {
+    if (sessionState || !currentUnit || currentUnit === "general") return;
+    const stats = getUnitStats(currentClass, currentUnit);
+    sessionState = {
+      startedAt: Date.now(),
+      problemsAttempted: 0,
+      problemsSolved: 0,
+      hintsUsed: 0,
+      startMastery: stats.masteryScore || 0,
+      counted: false
+    };
+  }
+
+  function recordHint() {
+    startSessionIfNeeded();
+    if (sessionState) sessionState.hintsUsed += 1;
+    hintsThisProblem += 1;
+    updateAnswerBtn();
+  }
+
+  function markSolved() {
+    startSessionIfNeeded();
+    if (!sessionState) return;
+    sessionState.problemsAttempted += 1;
+    sessionState.problemsSolved += 1;
+    commitProblemToStats(true);
+    showToast("Nice. Logged as solved.");
+    resetProblemCounter();
+    // auto-trigger new problem
+    setTimeout(() => newProblem(), 600);
+  }
+
+  function commitProblemToStats(solved) {
+    const stats = getUnitStats(currentClass, currentUnit);
+    stats.problemsAttempted += 1;
+    if (solved) stats.problemsSolved = (stats.problemsSolved || 0) + 1;
+    // Hints used: track running session count and add only the delta we haven't recorded yet
+    if (sessionState) {
+      const newHints = sessionState.hintsUsed - (sessionState._committedHints || 0);
+      stats.hintsUsed = (stats.hintsUsed || 0) + Math.max(0, newHints);
+      sessionState._committedHints = sessionState.hintsUsed;
+    }
+    stats.lastVisited = Date.now();
+    stats.masteryScore = computeMastery(stats);
+    setUnitStats(currentClass, currentUnit, stats);
+    progress.totalProblems = (progress.totalProblems || 0) + 1;
+    saveProgress(progress);
+  }
+
+  function endSessionIfActive(showRecap) {
+    if (!sessionState) return;
+    const sess = sessionState;
+    sessionState = null;
+    if (sess.problemsAttempted < 1) return; // doesn't count
+    // Commit any leftover hints not yet rolled into stats
+    const stats = getUnitStats(currentClass, currentUnit);
+    const leftover = sess.hintsUsed - (sess._committedHints || 0);
+    if (leftover > 0) {
+      stats.hintsUsed = (stats.hintsUsed || 0) + leftover;
+      stats.masteryScore = computeMastery(stats);
+      setUnitStats(currentClass, currentUnit, stats);
+    }
+    if (!sess.counted) {
+      // Update streak
+      const today = todayKey();
+      const s = progress.streak;
+      if (s.lastStudyDate !== today) {
+        if (s.lastStudyDate) {
+          const gap = daysBetween(s.lastStudyDate, Date.now());
+          if (gap === 1) s.currentStreak += 1;
+          else if (gap > 1) s.currentStreak = 1;
+        } else {
+          s.currentStreak = 1;
+        }
+        s.lastStudyDate = today;
+        if (s.currentStreak > s.longestStreak) s.longestStreak = s.currentStreak;
+      }
+      // Weekly goal
+      rollWeekIfNeeded();
+      progress.weeklyGoal.sessionsThisWeek += 1;
+      saveProgress(progress);
+      sess.counted = true;
+    }
+    if (showRecap) showRecapModal(sess);
+  }
+
+  function showToast(msg) {
+    const existing = document.querySelector(".session-toast");
+    if (existing) existing.remove();
+    const t = document.createElement("div");
+    t.className = "session-toast";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2200);
+  }
+
+  // ============ Modals ============
+  function closeModal() {
+    document.getElementById("modal-root").innerHTML = "";
+  }
+
+  function showRecapModal(sess) {
+    const stats = getUnitStats(currentClass, currentUnit);
+    const cls = classes[currentClass];
+    const unit = cls.units.find(u => u.id === currentUnit);
+    const mins = Math.max(1, Math.round((Date.now() - sess.startedAt) / 60000));
+    const delta = stats.masteryScore - sess.startMastery;
+    const root = document.getElementById("modal-root");
+    root.innerHTML =
+      '<div class="modal-backdrop" onclick="if(event.target===this)closeModal()">' +
+        '<div class="modal">' +
+          '<h3>Session recap</h3>' +
+          '<p class="modal-sub">' + unit.title + ' · ' + cls.title + '</p>' +
+          '<div class="recap-grid">' +
+            '<div class="recap-tile"><div class="recap-tile-value">' + mins + ' min</div><div class="recap-tile-label">Time</div></div>' +
+            '<div class="recap-tile"><div class="recap-tile-value">' + sess.problemsAttempted + '</div><div class="recap-tile-label">Problem' + (sess.problemsAttempted===1?'':'s') + '</div></div>' +
+            '<div class="recap-tile"><div class="recap-tile-value">' + sess.problemsSolved + '</div><div class="recap-tile-label">Solved</div></div>' +
+            '<div class="recap-tile"><div class="recap-tile-value">' + sess.hintsUsed + '</div><div class="recap-tile-label">Hints used</div></div>' +
+          '</div>' +
+          '<div class="recap-mastery-row">' +
+            '<div class="recap-mastery-delta">' + (delta >= 0 ? '+' : '') + delta + '</div>' +
+            '<div class="recap-mastery-text">Mastery now <strong>' + stats.masteryScore + '</strong> / 100' + (delta > 0 ? '. Keep it up.' : '') + '</div>' +
+          '</div>' +
+          '<div class="modal-actions">' +
+            '<button class="modal-btn" onclick="closeModal();goBackToClass()">Done for now</button>' +
+            '<button class="modal-btn primary" onclick="closeModal()">Keep going</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function openGoalModal() {
+    const root = document.getElementById("modal-root");
+    root.innerHTML =
+      '<div class="modal-backdrop" onclick="if(event.target===this)closeModal()">' +
+        '<div class="modal">' +
+          '<h3>Weekly goal</h3>' +
+          '<p class="modal-sub">How many study sessions per week are you aiming for? (A session = 1+ problems attempted.)</p>' +
+          '<input type="number" id="goal-input" class="goal-input" min="1" max="14" value="' + progress.weeklyGoal.target + '">' +
+          '<div class="modal-actions">' +
+            '<button class="modal-btn" onclick="closeModal()">Cancel</button>' +
+            '<button class="modal-btn primary" onclick="saveGoal()">Save</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    setTimeout(() => document.getElementById("goal-input").focus(), 50);
+  }
+
+  function saveGoal() {
+    const v = parseInt(document.getElementById("goal-input").value, 10);
+    if (v >= 1 && v <= 14) {
+      progress.weeklyGoal.target = v;
+      saveProgress(progress);
+      renderStatsBar();
+    }
+    closeModal();
+  }
+  // ============ End progress system ============
+
+  function storageKey() { return "socratic_" + currentClass + "_" + currentUnit; }
+
+  function saveConversation() {
+    if (!currentClass || !currentUnit) return;
+    try {
+      localStorage.setItem(storageKey(), JSON.stringify({
+        conversation: conversation,
+        difficulty: currentDifficulty,
+        mode: currentMode,
+        timestamp: Date.now()
+      }));
+    } catch (e) {}
+  }
+
+  function loadConversation() {
+    if (!currentClass || !currentUnit) return null;
+    try {
+      const raw = localStorage.getItem(storageKey());
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+
+  function clearConversation() {
+    if (!currentClass || !currentUnit) return;
+    try { localStorage.removeItem(storageKey()); } catch (e) {}
+  }
+
+  function showPage(pageId) {
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    document.getElementById(pageId).classList.add("active");
+  }
+
+  function goHome() {
+    endSessionIfActive(true);
+    currentClass = null;
+    currentUnit = null;
+    updateBreadcrumbs();
+    renderHome();
+    showPage("page-home");
+  }
+
+  function goBackToClass() {
+    if (sessionState && sessionState.problemsAttempted >= 1) {
+      endSessionIfActive(true);
+      // Recap modal handles navigation via its buttons
+      const ck = currentClass;
+      currentUnit = null;
+      updateBreadcrumbs();
+      openClass(ck);
+      return;
+    }
+    endSessionIfActive(false);
+    const ck = currentClass;
+    currentUnit = null;
+    updateBreadcrumbs();
+    if (ck) openClass(ck); else showPage("page-class");
+  }
+
+  function updateBreadcrumbs() {
+    const bc = document.getElementById("breadcrumbs");
+    let html = '<a onclick="goHome()">Home</a>';
+    if (currentClass) {
+      html += '<span class="sep">/</span><a onclick="goBackToClass()">' + classes[currentClass].title + '</a>';
+    }
+    if (currentUnit) {
+      let unitTitle;
+      if (currentUnit === "general") {
+        unitTitle = "General Questions";
+      } else {
+        const unit = classes[currentClass].units.find(u => u.id === currentUnit);
+        unitTitle = unit.title;
+      }
+      html += '<span class="sep">/</span><span>' + unitTitle + '</span>';
+    }
+    bc.innerHTML = html;
+  }
+
+  function renderHome() {
+    renderStatsBar();
+    const grid = document.getElementById("class-grid");
+    grid.innerHTML = "";
+    Object.entries(classes).forEach(([key, cls]) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.onclick = () => openClass(key);
+      card.innerHTML =
+        '<div class="card-icon">' + cls.icon + '</div>' +
+        '<div class="card-title">' + cls.title + '</div>' +
+        '<div class="card-desc">' + cls.tagline + '</div>' +
+        '<div class="card-meta"><span>' + cls.units.length + ' units</span><span>\u2192</span></div>';
+      grid.appendChild(card);
+    });
+  }
+
+  function openClass(key) {
+    currentClass = key;
+    const cls = classes[key];
+    document.getElementById("class-title").textContent = cls.title;
+    document.getElementById("class-desc").textContent = cls.desc;
+
+    const grid = document.getElementById("unit-grid");
+    grid.innerHTML = "";
+
+    const generalCard = document.createElement("div");
+    generalCard.className = "card card-general";
+    generalCard.onclick = () => openUnit("general");
+    generalCard.innerHTML =
+      '<div class="card-icon card-icon-general">?</div>' +
+      '<div class="card-title">General Questions</div>' +
+      '<div class="card-desc">Ask about syllabus, grading, policies, materials, or anything course-related.</div>';
+    grid.appendChild(generalCard);
+
+    cls.units.forEach(unit => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.onclick = () => openUnit(unit.id);
+      const stats = getUnitStats(currentClass, unit.id);
+      const mastery = stats.masteryScore || 0;
+      const ringHtml = renderRing(mastery);
+      const lastVisited = stats.lastVisited ? '<div class="last-visited">Last studied ' + relativeTime(stats.lastVisited) + '</div>' : '';
+      card.innerHTML =
+        '<div class="card-top">' +
+          '<div class="card-text">' +
+            '<div class="card-title">' + unit.title + '</div>' +
+            '<div class="card-desc">' + unit.desc + '</div>' +
+          '</div>' +
+          ringHtml +
+        '</div>' +
+        lastVisited;
+      grid.appendChild(card);
+    });
+
+    updateBreadcrumbs();
+    showPage("page-class");
+  }
+
+  function openUnit(unitId) {
+    currentUnit = unitId;
+    hintsThisProblem = 0;
+    activeUnitView = "chat";
+    _lastPracticeUnit = null; // force quiz reset when entering a unit
+    const cls = classes[currentClass];
+
+    let unitTitle, greeting;
+    if (unitId === "general") {
+      unitTitle = "General Questions";
+      greeting = "Hi! I'm here to answer general questions about " + cls.title + ". Ask about grading, policies, course materials, the schedule, the AI policy, or anything from the syllabus. What would you like to know?";
+    } else {
+      const unit = cls.units.find(u => u.id === unitId);
+      unitTitle = unit.title;
+      greeting = "Hi! I'm your Socratic tutor for " + unit.title + " (" + cls.title + "). I'll guide you through problems by asking questions rather than handing over answers, so you build real understanding. Tell me what you'd like to work on, or pick a starter prompt below.";
+    }
+
+    document.getElementById("unit-title").textContent = unitTitle;
+    document.getElementById("unit-class-label").textContent = cls.title;
+
+    const isGeneral = unitId === "general";
+    document.getElementById("hint-controls").style.display = isGeneral ? "none" : "flex";
+    document.getElementById("mode-controls").style.display = isGeneral ? "none" : "flex";
+    document.getElementById("unit-tab-bar").style.display = isGeneral ? "none" : "flex";
+    document.getElementById("chat-view").style.display = "";
+    document.getElementById("practice-view").style.display = "none";
+    document.querySelectorAll(".unit-tab").forEach(t => t.classList.toggle("active", t.dataset.view === "chat"));
+
+    document.getElementById("messages").innerHTML = "";
+    attachedImage = null;
+    updateImagePreview();
+
+    const saved = loadConversation();
+    if (saved && saved.conversation && saved.conversation.length > 0) {
+      conversation = saved.conversation;
+      currentDifficulty = saved.difficulty || "standard";
+      currentMode = saved.mode || "tutor";
+      updateDifficultyUI();
+      updateModeUI();
+      conversation.forEach(msg => {
+        if (msg.role === "user") {
+          const text = typeof msg.content === "string"
+            ? msg.content
+            : msg.content.filter(c => c.type === "text").map(c => c.text).join(" ");
+          if (text) addMessageVisual("user", text);
+        } else if (msg.role === "assistant") {
+          addMessageVisual("tutor", msg.content);
+        }
+      });
+      const messagesEl = document.getElementById("messages");
+      const resumed = document.createElement("div");
+      resumed.className = "resumed-indicator";
+      resumed.textContent = "Resumed previous session";
+      messagesEl.insertBefore(resumed, messagesEl.firstChild);
+    } else {
+      conversation = [];
+      currentDifficulty = "standard";
+      currentMode = "tutor";
+      updateDifficultyUI();
+      updateModeUI();
+      addMessage("tutor", greeting);
+    }
+
+    renderStarterPrompts();
+    updateAnswerBtn();
+    updateBreadcrumbs();
+    showPage("page-unit");
+  }
+
+  function resetChat() {
+    if (currentUnit) {
+      clearConversation();
+      openUnit(currentUnit);
+    }
+  }
+
+  function stripDashes(text) {
+    return text.replace(/[\u2014\u2013]/g, ",");
+  }
+
+  function renderContent(el, text, isMarkdown) {
+    const cleaned = stripDashes(text);
+    if (isMarkdown && window.marked) {
+      el.innerHTML = marked.parse(cleaned, { breaks: true });
+    } else {
+      el.textContent = cleaned;
+    }
+    if (window.renderMathInElement) {
+      try {
+        renderMathInElement(el, {
+          delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "$", right: "$", display: false },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "\\[", right: "\\]", display: true }
+          ],
+          throwOnError: false
+        });
+      } catch (e) {}
+    }
+  }
+
+  function addMessage(role, text) {
+    const messagesEl = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message " + role;
+    renderContent(div, text, role === "tutor");
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    saveConversation();
+  }
+
+  function addMessageVisual(role, text) {
+    const messagesEl = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message " + role;
+    renderContent(div, text, role === "tutor");
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function showThinking() {
+    const messagesEl = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "message tutor thinking";
+    div.id = "thinking-msg";
+    const dots = document.createElement("span");
+    dots.className = "typing-dots";
+    for (let i = 0; i < 3; i++) dots.appendChild(document.createElement("span"));
+    div.appendChild(dots);
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function removeThinking() {
+    const t = document.getElementById("thinking-msg");
+    if (t) t.remove();
+  }
+
+  function autoResize(el) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 150) + "px";
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function renderStarterPrompts() {
+    const container = document.getElementById("starter-prompts");
+    container.innerHTML = "";
+    if (currentUnit === "general" || conversation.length > 0) {
+      container.style.display = "none";
+      return;
+    }
+    const prompts = starterPromptsByUnit[currentUnit] || [
+      "Give me a problem to work on",
+      "Quiz me on this unit",
+      "Explain a key concept from this unit",
+      "What should I focus on for this unit?"
+    ];
+    prompts.forEach(p => {
+      const chip = document.createElement("button");
+      chip.className = "starter-chip";
+      chip.textContent = p;
+      chip.onclick = () => {
+        document.getElementById("user-input").value = p;
+        sendMessage();
+      };
+      container.appendChild(chip);
+    });
+    container.style.display = "flex";
+  }
+
+  function hideStarterPrompts() {
+    document.getElementById("starter-prompts").style.display = "none";
+  }
+
+  function setMode(mode) {
+    currentMode = mode;
+    updateModeUI();
+    saveConversation();
+  }
+
+  function updateModeUI() {
+    document.querySelectorAll(".mode-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.mode === currentMode);
+    });
+    if (!currentUnit || currentUnit === "general") return;
+    document.getElementById("hint-controls").style.display = currentMode === "tutor" ? "flex" : "none";
+  }
+
+  function setDifficulty(diff) {
+    currentDifficulty = diff;
+    updateDifficultyUI();
+    saveConversation();
+  }
+
+  function updateDifficultyUI() {
+    document.querySelectorAll(".diff-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.diff === currentDifficulty);
+    });
+  }
+
+  function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { alert("Please attach an image file."); return; }
+    if (file.size > 5 * 1024 * 1024) { alert("Image must be under 5MB."); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target.result;
+      const base64 = result.split(",")[1];
+      attachedImage = { data: base64, mediaType: file.type, dataUrl: result };
+      updateImagePreview();
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
+  function updateImagePreview() {
+    const preview = document.getElementById("image-preview");
+    if (!attachedImage) {
+      preview.innerHTML = "";
+      preview.classList.remove("has-image");
+      return;
+    }
+    preview.classList.add("has-image");
+    preview.innerHTML = "";
+    const inner = document.createElement("div");
+    inner.className = "image-preview-inner";
+    const img = document.createElement("img");
+    img.src = attachedImage.dataUrl;
+    img.alt = "Attached image";
+    const btn = document.createElement("button");
+    btn.className = "image-preview-remove";
+    btn.title = "Remove";
+    btn.textContent = "\u00D7";
+    btn.onclick = removeImage;
+    inner.appendChild(img);
+    inner.appendChild(btn);
+    preview.appendChild(inner);
+  }
+
+  function removeImage() {
+    attachedImage = null;
+    updateImagePreview();
+  }
+
+  function exportChat() {
+    if (conversation.length === 0) { alert("Nothing to export yet."); return; }
+    const cls = classes[currentClass];
+    let unitTitle;
+    if (currentUnit === "general") {
+      unitTitle = "General Questions";
+    } else {
+      unitTitle = cls.units.find(u => u.id === currentUnit).title;
+    }
+    const date = new Date().toLocaleDateString();
+    let md = "# " + cls.title + " - " + unitTitle + "\n\n";
+    md += "*Exported " + date + "*\n\n";
+    if (currentUnit !== "general") {
+      md += "**Mode:** " + (currentMode === "tutor" ? "Socratic Tutor" : "Solution Checker") + "  \n";
+      md += "**Difficulty:** " + currentDifficulty + "\n\n";
+    }
+    md += "---\n\n";
+    conversation.forEach(msg => {
+      const role = msg.role === "user" ? "You" : "Tutor";
+      const text = typeof msg.content === "string"
+        ? msg.content
+        : msg.content.filter(c => c.type === "text").map(c => c.text).join(" ");
+      md += "**" + role + ":** " + text + "\n\n";
+    });
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "socratic-" + currentClass + "-" + currentUnit + "-" + Date.now() + ".md";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById("user-input");
+    const text = input.value.trim();
+    if (!text && !attachedImage) return;
+
+    hideStarterPrompts();
+    startSessionIfNeeded();
+
+    if (attachedImage) {
+      const messagesEl = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = "message user";
+      const img = document.createElement("img");
+      img.src = attachedImage.dataUrl;
+      img.className = "user-attached";
+      div.appendChild(img);
+      if (text) {
+        const textNode = document.createElement("div");
+        renderContent(textNode, text, false);
+        div.appendChild(textNode);
+      }
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      const apiContent = [{
+        type: "image",
+        source: { type: "base64", media_type: attachedImage.mediaType, data: attachedImage.data }
+      }];
+      apiContent.push({ type: "text", text: text || "Can you help me with this problem?" });
+
+      conversation.push({ role: "user", content: apiContent });
+      attachedImage = null;
+      updateImagePreview();
+    } else {
+      addMessage("user", text);
+      conversation.push({ role: "user", content: text });
+    }
+
+    input.value = "";
+    autoResize(input);
+    saveConversation();
+
+    await callTutor();
+  }
+
+  async function askForHint(level) {
+    hideStarterPrompts();
+    startSessionIfNeeded();
+    if (level === "answer") {
+      if (hintsThisProblem < 2) { showToast("Try a hint or two first."); return; }
+      // showing the answer ends the current problem; reset gate
+      resetProblemCounter();
+    } else {
+      recordHint();
+    }
+    let prompt = "";
+    if (level === "small") prompt = "Can I get a smaller hint? Just nudge me in the right direction without giving too much away.";
+    else if (level === "big") prompt = "I need a bigger hint please. Point me to the specific concept or method I should use.";
+    else if (level === "answer") prompt = "I'd like to see the answer with a full step-by-step explanation now.";
+
+    addMessage("user", prompt);
+    conversation.push({ role: "user", content: prompt });
+    saveConversation();
+    await callTutor();
+  }
+
+  async function newProblem() {
+    hideStarterPrompts();
+    startSessionIfNeeded();
+    resetProblemCounter();
+    const prompt = "Give me a new problem to work on.";
+    addMessage("user", prompt);
+    conversation.push({ role: "user", content: prompt });
+    saveConversation();
+    await callTutor();
+  }
+
+  function getSystemPrompt() {
+    const cls = classes[currentClass];
+
+    const formattingRules = "\n\nFORMATTING RULES:\n- Never use em dashes or en dashes. Use commas, periods, parentheses, or colons instead.\n- Use LaTeX for ALL math. Wrap inline math in single dollar signs (example: $v = v_0 + at$). Wrap display math in double dollar signs (example: $$F = ma$$).\n- Use markdown for emphasis with double asterisks for bold and single asterisks for italic.\n- For physics, always include units. Format units in math with backslash text, like $9.8 \\text{ m/s}^2$.\n- Keep responses concise. The student should be doing most of the thinking.";
+
+    if (currentUnit === "general") {
+      return "You are a helpful course information assistant for " + cls.title + ". Your job is to answer student questions about the course based on the syllabus information below.\n\nGuidelines:\n- Answer directly and clearly. This is NOT a Socratic interaction.\n- Quote specific numbers and policies from the syllabus when relevant.\n- If a question is not covered by the syllabus, say so honestly and suggest the student contact the teacher.\n- Be friendly and concise. Usually 1-3 sentences unless the question requires more detail.\n- Do NOT make up information that is not in the syllabus." + formattingRules + "\n\n=== SYLLABUS ===\n" + cls.syllabus + "\n=== END SYLLABUS ===";
+    }
+
+    const unit = cls.units.find(u => u.id === currentUnit);
+
+    const difficultyDescriptions = {
+      warmup: "WARM-UP level: Build confidence with foundational, single-concept problems. Simple numbers and clear setups.",
+      standard: "STANDARD level: Typical homework or test difficulty. Multi-step problems requiring 2-3 concepts working together.",
+      challenge: "CHALLENGE level: Demanding problems combining multiple concepts, requiring careful setup or non-obvious approaches."
+    };
+
+    if (currentMode === "checker") {
+      return "You are a SOLUTION CHECKER for " + cls.title + ", specifically the unit \"" + unit.title + "\".\n\nThe student will share their attempted solution to a problem (text, image, or both) and you will critique their reasoning step by step.\n\nYour approach:\n- Carefully read or look at the student's work.\n- Identify what they did correctly and praise specific reasoning steps.\n- Identify any errors: conceptual misunderstandings, calculation mistakes, missed considerations, sign errors, unit issues.\n- For each error, explain WHY it is wrong, not just that it is wrong. Connect it to the underlying concept.\n- If the solution is correct, confirm it and possibly note alternative approaches.\n- If the student didn't show enough work, ask for the specific step you need to see.\n- End with a clear summary: is the answer correct? If not, what is the corrected approach?\n\nTone: Constructive and specific. Treat errors as learning opportunities.\n\nDifficulty preference for any new problems: " + difficultyDescriptions[currentDifficulty] + "\n\nUnit context: This unit covers \"" + unit.title + "\". " + unit.desc + formattingRules;
+    }
+
+    return "You are a SOCRATIC TUTOR for " + cls.title + ", specifically the unit \"" + unit.title + "\".\n\nYour teaching philosophy:\n- NEVER give the answer directly unless the student explicitly asks for \"the answer\" or \"show me the answer.\"\n- Guide the student with questions that help them discover the solution themselves.\n- When a student is stuck, ask what they understand so far, then ask a leading question.\n- If the student requests a \"smaller hint,\" give a subtle nudge.\n- If they ask for a \"bigger hint,\" name the relevant concept or formula but still ask them to apply it.\n- If they explicitly ask for the answer, give a clear, well-structured step-by-step explanation.\n- Praise correct reasoning specifically and gently redirect when reasoning goes off track.\n- Keep responses concise. Usually 2-4 sentences. Don't lecture.\n- When the student asks for a problem, generate one appropriate to the unit AND the requested difficulty level.\n\nDifficulty for problems you generate: " + difficultyDescriptions[currentDifficulty] + "\n\nUnit context: This unit covers \"" + unit.title + "\". " + unit.desc + " Generate problems and guidance specifically appropriate to this unit's topics.\n\nIf the student attaches an image: read it carefully. It might be a textbook problem, their handwritten work, a diagram, or a screenshot. Use the same Socratic approach. Don't just solve it.\n\nTone: Warm but rigorous. Curious. Treat the student as a capable thinker." + formattingRules;
+  }
+
+  // Convert conversation history (which uses Anthropic API content-block format,
+  // including base64 images) into a flat text transcript that window.claude.complete
+  // can consume. Images are noted as a placeholder since the helper is text-only.
+  function buildMessagesForClaude() {
+    return conversation.map(msg => {
+      let text;
+      if (typeof msg.content === "string") {
+        text = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        const parts = [];
+        msg.content.forEach(block => {
+          if (block.type === "text") parts.push(block.text);
+          else if (block.type === "image") parts.push("[Student attached an image. Note: you cannot see images in this environment, so ask the student to describe what they see or to type out the problem.]");
+        });
+        text = parts.join("\n");
+      } else {
+        text = String(msg.content);
+      }
+      return { role: msg.role, content: text };
+    });
+  }
+
+  async function callTutor() {
+    showThinking();
+    document.getElementById("send-btn").disabled = true;
+
+    try {
+      // window.claude.complete accepts a single prompt string.
+      // Combine the system prompt and the conversation transcript.
+      const sysPrompt = getSystemPrompt();
+      const transcript = buildMessagesForClaude()
+        .map(m => (m.role === "user" ? "Student" : "Tutor") + ": " + m.content)
+        .join("\n\n");
+      const fullPrompt = sysPrompt + "\n\n=== CONVERSATION SO FAR ===\n" + transcript + "\n\nRespond now as the Tutor. Do not include the 'Tutor:' prefix in your response.";
+
+      console.log("Sending prompt, length:", fullPrompt.length);
+      const reply = await window.claude.complete(fullPrompt);
+      console.log("Got reply:", reply);
+
+      removeThinking();
+
+      let text = (reply || "").trim();
+      // Strip a leading "Tutor:" if the model included it anyway
+      text = text.replace(/^Tutor:\s*/i, "").trim();
+
+      if (text) {
+        addMessage("tutor", text);
+        conversation.push({ role: "assistant", content: text });
+        saveConversation();
+      } else {
+        addMessage("tutor", "Empty response received. Check the browser console for details, or try sending a longer message.");
+      }
+    } catch (err) {
+      removeThinking();
+      const errMsg = err && err.message ? err.message : String(err);
+      addMessage("tutor", "Error: " + errMsg);
+      console.error("Tutor call failed:", err);
+    } finally {
+      document.getElementById("send-btn").disabled = false;
+    }
+  }
+
+  // ============ Practice Quiz ============
+
+  function switchUnitTab(view) {
+    activeUnitView = view;
+    document.querySelectorAll(".unit-tab").forEach(t => t.classList.toggle("active", t.dataset.view === view));
+    document.getElementById("chat-view").style.display = view === "chat" ? "" : "none";
+    document.getElementById("practice-view").style.display = view === "practice" ? "" : "none";
+    if (view === "practice") initPracticeView();
+  }
+
+  function initPracticeView() {
+    if (_lastPracticeUnit !== currentUnit) {
+      _lastPracticeUnit = currentUnit;
+      quizSession = { total: 0, correct: 0 };
+      quizQuestionNum = 0;
+      showQuizState("start");
+    }
+    updatePracticeModeUI();
+    updatePracticeDiffUI();
+    updateQuizScore();
+    if (currentClass && currentUnit && currentUnit !== "general") {
+      const unit = classes[currentClass].units.find(u => u.id === currentUnit);
+      if (unit) {
+        document.getElementById("quiz-q-topic").textContent = unit.title;
+        document.getElementById("frq-q-topic").textContent = unit.title;
+      }
+    }
+  }
+
+  function showQuizState(state) {
+    document.getElementById("quiz-start").style.display = state === "start" ? "block" : "none";
+    document.getElementById("quiz-loading").style.display = state === "loading" ? "block" : "none";
+    document.getElementById("quiz-mcq-card").style.display = state === "mcq" ? "block" : "none";
+    document.getElementById("quiz-frq-card").style.display = state === "frq" ? "block" : "none";
+  }
+
+  function setPracticeMode(mode) {
+    practiceMode = mode;
+    quizSession = { total: 0, correct: 0 };
+    quizQuestionNum = 0;
+    updatePracticeModeUI();
+    updateQuizScore();
+    showQuizState("start");
+  }
+
+  function updatePracticeModeUI() {
+    document.querySelectorAll("[data-pmode]").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.pmode === practiceMode);
+    });
+  }
+
+  function setPracticeDiff(diff) {
+    practiceDiff = diff;
+    updatePracticeDiffUI();
+  }
+
+  function updatePracticeDiffUI() {
+    document.querySelectorAll("[data-pdiff]").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.pdiff === practiceDiff);
+    });
+  }
+
+  function beginQuiz() {
+    if (practiceMode === "mcq") fetchMCQQuestion();
+    else fetchFRQQuestion();
+  }
+
+  function nextQuizQuestion() {
+    if (practiceMode === "mcq") fetchMCQQuestion();
+    else fetchFRQQuestion();
+  }
+
+  function updateQuizScore() {
+    const label = document.getElementById("quiz-score-label");
+    const fill = document.getElementById("quiz-score-fill");
+    if (!label || !fill) return;
+    if (practiceMode === "mcq") {
+      label.textContent = quizSession.correct + " / " + quizSession.total + " correct";
+      const pct = quizSession.total > 0 ? Math.round((quizSession.correct / quizSession.total) * 100) : 0;
+      fill.style.width = pct + "%";
+    } else {
+      label.textContent = quizSession.total + " completed";
+      fill.style.width = Math.min(100, quizSession.total * 20) + "%";
+    }
+  }
+
+  async function callQuiz(prompt) {
+    const reply = await window.claude.complete(prompt);
+    return (reply || "").trim();
+  }
+
+  const QUIZ_FORMATTING = "\n\nFORMATTING: Use LaTeX for ALL math ($...$ for inline, $$...$$ for display). Never use em dashes or en dashes. Always include units.";
+
+  async function fetchMCQQuestion() {
+    if (!currentClass || !currentUnit || currentUnit === "general") return;
+    quizQuestionNum++;
+    showQuizState("loading");
+
+    const cls = classes[currentClass];
+    const unit = cls.units.find(u => u.id === currentUnit);
+    const diffDesc = { warmup: "WARM-UP: foundational, single-concept, simple numbers.", standard: "STANDARD: typical test difficulty, 2-3 concepts, multi-step.", challenge: "CHALLENGE: demanding, multiple concepts, non-obvious approach." }[practiceDiff];
+
+    const prompt = "You are an MCQ quiz generator for " + cls.title + ", unit \"" + unit.title + "\" (" + unit.desc + ").\n\nDifficulty: " + diffDesc + "\n\nGenerate ONE multiple-choice question. Your entire response MUST follow this EXACT format with no extra text before or after:\n\nQUESTION: [question text, may be multiple sentences]\n\n**A)** [option text]\n**B)** [option text]\n**C)** [option text]\n**D)** [option text]\n\nCORRECT: [just the letter A, B, C, or D]\nEXPLANATION: [2-4 sentences: why the correct answer is right and briefly why each distractor is wrong]" + QUIZ_FORMATTING;
+
+    try {
+      const text = await callQuiz(prompt);
+      const data = parseMCQQuizResponse(text);
+      if (data) {
+        currentQuizData = data;
+        renderMCQCard(data);
+      } else {
+        showQuizState("start");
+        console.error("MCQ parse failed. Raw response:", text);
+        alert("Could not parse question format. Please try again.");
+      }
+    } catch (err) {
+      showQuizState("start");
+      alert("Error: " + (err.message || err));
+    }
+  }
+
+  function parseMCQQuizResponse(text) {
+    const qMatch = text.match(/QUESTION:\s*([\s\S]+?)(?=\n\s*\*?\*?[A-D]\))/);
+    const question = qMatch ? qMatch[1].trim() : null;
+
+    const choices = {};
+    const choiceRe = /\*?\*?([A-D])\)\*?\*?\s+(.+)/g;
+    let cm;
+    while ((cm = choiceRe.exec(text)) !== null) {
+      choices[cm[1]] = cm[2].replace(/\*\*/g, "").trim();
+    }
+
+    const correctMatch = text.match(/CORRECT:\s*([A-D])/);
+    const correct = correctMatch ? correctMatch[1] : null;
+
+    const explMatch = text.match(/EXPLANATION:\s*([\s\S]+)/);
+    const explanation = explMatch ? explMatch[1].trim() : "";
+
+    if (!question || Object.keys(choices).length < 4 || !correct) return null;
+    return { question, choices, correct, explanation };
+  }
+
+  function renderMCQCard(data) {
+    document.getElementById("quiz-q-num").textContent = "Q" + quizQuestionNum;
+    renderContent(document.getElementById("quiz-question"), data.question, true);
+
+    const choicesEl = document.getElementById("quiz-choices");
+    choicesEl.innerHTML = "";
+    ["A", "B", "C", "D"].forEach(letter => {
+      if (!data.choices[letter]) return;
+      const btn = document.createElement("button");
+      btn.className = "quiz-choice";
+      btn.dataset.letter = letter;
+
+      const ltrSpan = document.createElement("span");
+      ltrSpan.className = "quiz-choice-ltr";
+      ltrSpan.textContent = letter;
+
+      const textSpan = document.createElement("span");
+      textSpan.className = "quiz-choice-text";
+      renderContent(textSpan, data.choices[letter], true);
+
+      btn.appendChild(ltrSpan);
+      btn.appendChild(textSpan);
+      btn.onclick = () => handleMCQChoice(letter);
+      choicesEl.appendChild(btn);
+    });
+
+    const fb = document.getElementById("quiz-mcq-feedback");
+    fb.innerHTML = "";
+    fb.style.display = "none";
+    fb.className = "quiz-feedback";
+    document.getElementById("quiz-mcq-next").style.display = "none";
+    showQuizState("mcq");
+  }
+
+  function handleMCQChoice(clickedLetter) {
+    document.querySelectorAll("#quiz-choices .quiz-choice").forEach(btn => {
+      btn.disabled = true;
+      const l = btn.dataset.letter;
+      if (l === currentQuizData.correct) btn.classList.add("correct");
+      else if (l === clickedLetter) btn.classList.add("incorrect");
+    });
+
+    const isCorrect = clickedLetter === currentQuizData.correct;
+    if (isCorrect) quizSession.correct++;
+    quizSession.total++;
+    updateQuizScore();
+
+    const fb = document.getElementById("quiz-mcq-feedback");
+    fb.className = "quiz-feedback " + (isCorrect ? "correct" : "incorrect");
+    fb.innerHTML = "";
+
+    const verdict = document.createElement("div");
+    verdict.className = "quiz-feedback-verdict";
+    verdict.textContent = isCorrect ? "✓ Correct!" : "✗ Incorrect — the answer was " + currentQuizData.correct + ")";
+    fb.appendChild(verdict);
+
+    if (currentQuizData.explanation) {
+      const explEl = document.createElement("div");
+      renderContent(explEl, currentQuizData.explanation, true);
+      fb.appendChild(explEl);
+    }
+
+    fb.style.display = "block";
+    document.getElementById("quiz-mcq-next").style.display = "flex";
+  }
+
+  async function fetchFRQQuestion() {
+    if (!currentClass || !currentUnit || currentUnit === "general") return;
+    quizQuestionNum++;
+    showQuizState("loading");
+
+    const cls = classes[currentClass];
+    const unit = cls.units.find(u => u.id === currentUnit);
+    const diffDesc = { warmup: "WARM-UP: foundational, single-concept, simple numbers.", standard: "STANDARD: typical test difficulty, 2-3 concepts, multi-step.", challenge: "CHALLENGE: demanding, multiple concepts, non-obvious approach." }[practiceDiff];
+
+    const prompt = "You are an FRQ quiz generator for " + cls.title + ", unit \"" + unit.title + "\" (" + unit.desc + ").\n\nDifficulty: " + diffDesc + "\n\nGenerate ONE AP-style free-response question:\n- Write a quantitative scenario with realistic numbers.\n- Break it into 2-4 parts: **(a) (X pts)** question, **(b) (X pts)** question, etc.\n- Point values: 2-4 pts each. Total must sum to exactly 10 pts.\n- Do NOT include answers, hints, or a scoring guide." + QUIZ_FORMATTING;
+
+    try {
+      const text = await callQuiz(prompt);
+      currentQuizData = { question: text };
+      renderFRQCard(text);
+    } catch (err) {
+      showQuizState("start");
+      alert("Error: " + (err.message || err));
+    }
+  }
+
+  function renderFRQCard(questionText) {
+    document.getElementById("frq-q-num").textContent = "Q" + quizQuestionNum;
+    renderContent(document.getElementById("frq-question"), questionText, true);
+    document.getElementById("frq-answer-input").value = "";
+    document.getElementById("frq-submit-btn").disabled = false;
+    document.getElementById("frq-answer-section").style.display = "block";
+    document.getElementById("frq-grading-indicator").style.display = "none";
+    const fb = document.getElementById("quiz-frq-feedback");
+    fb.innerHTML = "";
+    fb.style.display = "none";
+    document.getElementById("quiz-frq-next").style.display = "none";
+    showQuizState("frq");
+  }
+
+  async function submitFRQQuiz() {
+    const answer = document.getElementById("frq-answer-input").value.trim();
+    if (!answer) { alert("Please write your response before submitting."); return; }
+
+    document.getElementById("frq-submit-btn").disabled = true;
+    document.getElementById("frq-answer-section").style.display = "none";
+    document.getElementById("frq-grading-indicator").style.display = "block";
+
+    const prompt = "You are grading a student's FRQ response.\n\nQUESTION:\n" + currentQuizData.question + "\n\nSTUDENT RESPONSE:\n" + answer + "\n\nGrade each part:\n- For each part (a), (b), etc.: write **(a) [X/Y points]** then brief, specific feedback.\n- End with **Total: X/10 points**.\n- If they lost points, name one concept or formula to review." + QUIZ_FORMATTING;
+
+    try {
+      const gradingText = await callQuiz(prompt);
+      document.getElementById("frq-grading-indicator").style.display = "none";
+      const fb = document.getElementById("quiz-frq-feedback");
+      renderContent(fb, gradingText, true);
+      fb.style.display = "block";
+      document.getElementById("quiz-frq-next").style.display = "flex";
+      quizSession.total++;
+      updateQuizScore();
+    } catch (err) {
+      document.getElementById("frq-grading-indicator").style.display = "none";
+      document.getElementById("frq-answer-section").style.display = "block";
+      document.getElementById("frq-submit-btn").disabled = false;
+      alert("Error grading: " + (err.message || err));
+    }
+  }
+
+  // ==========================================
+
+  renderHome();
+</script>
+</body>
+</html>
