@@ -25,9 +25,11 @@ the course syllabi via RAG (retrieval-augmented generation).
 
 ## Current status
 
-The RAG pipeline works and the UI is ported from the prototype, but the AI responses
-are **not connected yet**. See `docs/ROADMAP.md` for the authoritative status and next
-steps. AI actions in `app/page.tsx` currently show a "not wired yet" toast.
+Milestone 1 is **built**: the chat tutor is wired end to end (`app/api/chat/route.ts`
+streams Claude through `lib/prompts.ts` + `lib/retrieve.ts`, and `app/page.tsx` renders
+the stream). The only step left is pasting an `ANTHROPIC_API_KEY` into `.env.local` and
+restarting the dev server. Practice quizzes (Milestone 2) and progress (Milestone 3) are
+still stubbed. See `docs/ROADMAP.md` for the authoritative status.
 
 ## Architecture
 
@@ -37,7 +39,13 @@ steps. AI actions in `app/page.tsx` currently show a "not wired yet" toast.
 - `lib/courses.ts` — `classes` (titles, descriptions, syllabi, units) and
   `starterPromptsByUnit`. Source of truth for course content.
 - `lib/retrieve.ts` — `retrieveContext(question, course, matchCount, threshold)`;
-  server-side, uses the publishable key. Drops into an API route unchanged.
+  server-side, uses the publishable key. NB: the retrieval `course` filter uses the
+  Supabase metadata labels (`physics` / `data-science`), not the app's `CourseKey`
+  (`physics` / `datascience`) — `app/api/chat/route.ts` maps between them.
+- `lib/prompts.ts` — `getSystemPrompt({course, unit, mode, difficulty, context})`;
+  ported from the prototype's `getSystemPrompt()` (tutor / checker / general modes).
+- `app/api/chat/route.ts` — the tutor backend: retrieves context, builds the prompt,
+  streams `claude-opus-4-8` (adaptive thinking) back as plain text.
 - `scripts/ingest.ts` — CLI ingestion (uses **pdf-parse v2**: `new PDFParse({data}).getText()`,
   not v1's default export). Uses `SUPABASE_SECRET_KEY` (bypasses RLS to write).
 - `scripts/retrieve-test.ts` — manual retrieval test; dynamically imports `retrieve.ts`
