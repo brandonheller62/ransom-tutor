@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   classes,
   starterPromptsByUnit,
@@ -8,11 +9,33 @@ import {
   type Unit,
 } from "@/lib/courses";
 
+// Shared motion presets for the refreshed UI.
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+};
+const pageTransition = { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
+
+// Staggered grid: container reveals children one after another.
+const gridVariants = {
+  animate: { transition: { staggerChildren: 0.06 } },
+};
+const cardVariants = {
+  initial: { opacity: 0, y: 14 },
+  animate: { opacity: 1, y: 0, transition: pageTransition },
+};
+
 type View = "home" | "class" | "unit";
 type Mode = "tutor" | "checker";
 type Difficulty = "warmup" | "standard" | "challenge";
 type UnitView = "chat" | "practice";
 type PracticeMode = "mcq" | "frq";
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
 // Mastery ring shown on unit cards. Static (0%) until the progress engine is wired.
 function Ring({ percent }: { percent: number }) {
@@ -53,14 +76,24 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
+  // Chat state (Milestone 1).
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 2600);
   }
 
-  // The AI behaviors aren't wired up yet — they need the Anthropic API backend.
+  // Practice quizzes (Milestone 2) and progress (Milestone 3) aren't wired yet.
   const SOON =
-    "The AI tutor isn't connected yet — that's the next build step (Anthropic API + your RAG retrieval).";
+    "Practice quizzes are the next build step. The chat tutor below is fully working.";
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   function goHome() {
     setView("home");
@@ -77,6 +110,7 @@ export default function Home() {
     setCurrentUnit(unit);
     setUnitView("chat");
     setInput("");
+    resetChat();
     setView("unit");
   }
 
@@ -85,7 +119,120 @@ export default function Home() {
     setCurrentUnit(null);
   }
 
+  function resetChat() {
+    setMessages([]);
+    setHintsUsed(0);
+    setIsStreaming(false);
+  }
+
   const course = currentClass ? classes[currentClass] : null;
+
+  // Send a turn to the tutor and stream the reply into the last assistant bubble.
+  async function callTutor(history: ChatMessage[]) {
+    if (!currentClass || !currentUnit) return;
+    setIsStreaming(true);
+    // Add an empty assistant message we'll fill as tokens stream in.
+    setMessages([...history, { role: "assistant", content: "" }]);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: history,
+          course: currentClass,
+          unitId: currentUnit.id,
+          mode,
+          difficulty,
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? `Request failed (${res.status})`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+        setMessages([...history, { role: "assistant", content: acc }]);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      setMessages([
+        ...history,
+        { role: "assistant", content: `Sorry, the tutor could not respond. ${msg}` },
+      ]);
+      showToast(msg);
+    } finally {
+      setIsStreaming(false);
+    }
+  }
+
+  function sendUserText(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || isStreaming) return;
+    const history = [...messages, { role: "user" as const, content: trimmed }];
+    setInput("");
+    void callTutor(history);
+  }
+
+  function onSend() {
+    sendUserText(input);
+  }
+
+  // Hint buttons send canned requests and count toward the "show answer" gate.
+  function requestHint(kind: "smaller" | "bigger") {
+    if (isStreaming) return;
+    setHintsUsed((n) => n + 1);
+    sendUserText(
+      kind === "smaller"
+        ? "Can I have a smaller hint?"
+        : "Can I have a bigger hint?",
+    );
+  }
+
+  function showAnswer() {
+    if (isStreaming) return;
+    sendUserText("Show me the answer, with a clear step-by-step explanation.");
+  }
+
+  function markSolved() {
+    if (isStreaming) return;
+    setHintsUsed(0);
+    sendUserText("I solved it! Can you confirm my approach was right and give me a quick takeaway?");
+  }
+
+  function newProblem() {
+    if (isStreaming) return;
+    setHintsUsed(0);
+    sendUserText("Give me a new problem for this unit at the current difficulty.");
+  }
+
+  function exportTranscript() {
+    if (!currentUnit || !course) return;
+    if (messages.length === 0) {
+      showToast("Nothing to export yet. Start a conversation first.");
+      return;
+    }
+    let md = `# ${course.title} — ${currentUnit.title}\n\n`;
+    md += `**Mode:** ${mode === "tutor" ? "Socratic Tutor" : "Solution Checker"}  \n`;
+    md += `**Difficulty:** ${difficulty}\n\n---\n\n`;
+    for (const m of messages) {
+      md += `**${m.role === "user" ? "You" : "Tutor"}:** ${m.content}\n\n`;
+    }
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${currentUnit.id}-transcript.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="container">
@@ -116,9 +263,18 @@ export default function Home() {
         </div>
       </header>
 
+      <AnimatePresence mode="wait">
       {/* ===================== HOME ===================== */}
       {view === "home" && (
-        <div className="page">
+        <motion.div
+          className="page"
+          key="home"
+          variants={pageVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={pageTransition}
+        >
           <div className="hero">
             <h1>Learn by asking better questions.</h1>
             <p>
@@ -158,11 +314,23 @@ export default function Home() {
           </div>
 
           <div className="section-title">Classes</div>
-          <div className="cards-grid">
+          <motion.div
+            className="cards-grid"
+            variants={gridVariants}
+            initial="initial"
+            animate="animate"
+          >
             {(Object.keys(classes) as CourseKey[]).map((key) => {
               const c = classes[key];
               return (
-                <div className="card" key={key} onClick={() => openClass(key)}>
+                <motion.div
+                  className="card"
+                  key={key}
+                  onClick={() => openClass(key)}
+                  variants={cardVariants}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.99 }}
+                >
                   <div className="card-icon">{c.icon}</div>
                   <div className="card-title">{c.title}</div>
                   <div className="card-desc">{c.desc}</div>
@@ -170,16 +338,24 @@ export default function Home() {
                     <span>{c.units.length} units</span>
                     <span>→</span>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* ===================== CLASS ===================== */}
       {view === "class" && course && (
-        <div className="page">
+        <motion.div
+          className="page"
+          key="class"
+          variants={pageVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={pageTransition}
+        >
           <button className="back-btn" onClick={goHome}>
             ← Back to classes
           </button>
@@ -188,9 +364,21 @@ export default function Home() {
             <p>{course.tagline}</p>
           </div>
           <div className="section-title">Units</div>
-          <div className="cards-grid">
+          <motion.div
+            className="cards-grid"
+            variants={gridVariants}
+            initial="initial"
+            animate="animate"
+          >
             {course.units.map((unit) => (
-              <div className="card" key={unit.id} onClick={() => openUnit(unit)}>
+              <motion.div
+                className="card"
+                key={unit.id}
+                onClick={() => openUnit(unit)}
+                variants={cardVariants}
+                whileHover={{ y: -4 }}
+                whileTap={{ scale: 0.99 }}
+              >
                 <div className="card-top">
                   <div className="card-text">
                     <div className="card-title">{unit.title}</div>
@@ -199,15 +387,23 @@ export default function Home() {
                   <Ring percent={0} />
                 </div>
                 <div className="last-visited">Not started yet</div>
-              </div>
+              </motion.div>
             ))}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* ===================== UNIT ===================== */}
       {view === "unit" && course && currentUnit && (
-        <div className="page">
+        <motion.div
+          className="page"
+          key="unit"
+          variants={pageVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={pageTransition}
+        >
           <div className="unit-view-header">
             <button className="back-btn" onClick={goBackToClass}>
               ← Back to units
@@ -231,21 +427,6 @@ export default function Home() {
           {/* ---------- Chat view ---------- */}
           {unitView === "chat" && (
             <div className="chat-container">
-              <div className="chat-header">
-                <div className="chat-header-info">
-                  <h3>{currentUnit.title}</h3>
-                  <p>{course.title}</p>
-                </div>
-                <div className="chat-header-actions">
-                  <button className="reset-btn" onClick={() => showToast(SOON)}>
-                    Export
-                  </button>
-                  <button className="reset-btn" onClick={() => showToast(SOON)}>
-                    Reset
-                  </button>
-                </div>
-              </div>
-
               <div className="mode-controls">
                 <div className="mode-group">
                   <span className="control-label">Mode:</span>
@@ -274,6 +455,14 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
+                <div className="chat-header-actions">
+                  <button className="reset-btn" onClick={exportTranscript}>
+                    Export
+                  </button>
+                  <button className="reset-btn" onClick={resetChat}>
+                    Reset
+                  </button>
+                </div>
               </div>
 
               <div className="messages">
@@ -283,44 +472,72 @@ export default function Home() {
                     <strong>{currentUnit.title}</strong>. I&apos;ll guide you
                     through problems with hints instead of handing over answers.
                   </p>
-                  <p>
-                    Pick a starter prompt below or type a question to begin.
-                  </p>
+                  <p>Pick a starter prompt below or type a question to begin.</p>
                 </div>
-                <div className="notice">
-                  ⚙️ Preview build: the interface is live, but the AI responses
-                  aren&apos;t connected yet. That&apos;s the next step — an API
-                  route that calls the Anthropic API and pulls grounding context
-                  from your Supabase RAG store.
-                </div>
+
+                {messages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={"message " + (m.role === "user" ? "user" : "tutor")}
+                  >
+                    <p style={{ whiteSpace: "pre-wrap" }}>
+                      {m.content ||
+                        (isStreaming && i === messages.length - 1 ? "…" : "")}
+                    </p>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
               </div>
 
-              <div className="starter-prompts">
-                {(starterPromptsByUnit[currentUnit.id] ?? []).map((p) => (
-                  <button
-                    key={p}
-                    className="starter-chip"
-                    onClick={() => setInput(p)}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
+              {messages.length === 0 && (
+                <div className="starter-prompts">
+                  {(starterPromptsByUnit[currentUnit.id] ?? []).map((p) => (
+                    <button
+                      key={p}
+                      className="starter-chip"
+                      onClick={() => setInput(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="hint-controls">
-                <button className="hint-btn" onClick={() => showToast(SOON)}>
+                <button
+                  className="hint-btn"
+                  onClick={() => requestHint("smaller")}
+                  disabled={isStreaming}
+                >
                   Smaller hint
                 </button>
-                <button className="hint-btn" onClick={() => showToast(SOON)}>
+                <button
+                  className="hint-btn"
+                  onClick={() => requestHint("bigger")}
+                  disabled={isStreaming}
+                >
                   Bigger hint
                 </button>
-                <button className="hint-btn" disabled title="Try 2 hints first">
+                <button
+                  className="hint-btn"
+                  onClick={showAnswer}
+                  disabled={isStreaming || hintsUsed < 2}
+                  title={hintsUsed < 2 ? "Try 2 hints first" : "Show the full answer"}
+                >
                   Show me the answer
                 </button>
-                <button className="hint-btn solved" onClick={() => showToast(SOON)}>
+                <button
+                  className="hint-btn solved"
+                  onClick={markSolved}
+                  disabled={isStreaming}
+                >
                   ✓ I solved it
                 </button>
-                <button className="hint-btn" onClick={() => showToast(SOON)}>
+                <button
+                  className="hint-btn"
+                  onClick={newProblem}
+                  disabled={isStreaming}
+                >
                   New problem
                 </button>
               </div>
@@ -334,12 +551,16 @@ export default function Home() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      showToast(SOON);
+                      onSend();
                     }
                   }}
                 />
-                <button className="send-btn" onClick={() => showToast(SOON)}>
-                  Send
+                <button
+                  className="send-btn"
+                  onClick={onSend}
+                  disabled={isStreaming || !input.trim()}
+                >
+                  {isStreaming ? "…" : "Send"}
                 </button>
               </div>
             </div>
@@ -391,10 +612,23 @@ export default function Home() {
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
-      {toast && <div className="session-toast">{toast}</div>}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            className="session-toast"
+            initial={{ opacity: 0, y: 12, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: 12, x: "-50%" }}
+            transition={{ duration: 0.25 }}
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
