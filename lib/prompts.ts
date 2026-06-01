@@ -20,6 +20,75 @@ import type { Course, Unit } from "./courses";
 export type Mode = "tutor" | "checker" | "general";
 export type Difficulty = "warmup" | "standard" | "challenge";
 
+// Short difficulty hints used by the quiz generators (ported from the prototype).
+const QUIZ_DIFFICULTY: Record<Difficulty, string> = {
+  warmup: "WARM-UP: foundational, single-concept, simple numbers.",
+  standard: "STANDARD: typical test difficulty, 2-3 concepts, multi-step.",
+  challenge: "CHALLENGE: demanding, multiple concepts, non-obvious approach.",
+};
+
+const QUIZ_FORMATTING =
+  "\n\nFORMATTING: Use LaTeX for ALL math ($...$ for inline, $$...$$ for display). " +
+  "Never use em dashes or en dashes. Always include units.";
+
+function quizGrounding(context?: string): string {
+  return context?.trim()
+    ? `\n\n=== RETRIEVED COURSE CONTEXT (from the syllabus, use when relevant) ===\n${context.trim()}\n=== END CONTEXT ===`
+    : "";
+}
+
+export interface QuizPromptArgs {
+  course: Course;
+  unit: Unit;
+  difficulty: Difficulty;
+  context?: string; // retrieved syllabus chunks (RAG grounding)
+}
+
+/** System prompt that asks the model for ONE multiple-choice question in a strict, parseable format. */
+export function getMcqPrompt({ course, unit, difficulty, context }: QuizPromptArgs): string {
+  return (
+    `You are an MCQ quiz generator for ${course.title}, unit "${unit.title}" (${unit.desc}).\n\n` +
+    `Difficulty: ${QUIZ_DIFFICULTY[difficulty]}\n\n` +
+    `Generate ONE multiple-choice question. Your entire response MUST follow this EXACT format ` +
+    `with no extra text before or after:\n\n` +
+    `QUESTION: [question text, may be multiple sentences]\n\n` +
+    `**A)** [option text]\n**B)** [option text]\n**C)** [option text]\n**D)** [option text]\n\n` +
+    `CORRECT: [just the letter A, B, C, or D]\n` +
+    `EXPLANATION: [2-4 sentences: why the correct answer is right and briefly why each distractor is wrong]` +
+    QUIZ_FORMATTING +
+    quizGrounding(context)
+  );
+}
+
+/** System prompt that asks the model for ONE AP-style free-response question worth 10 points total. */
+export function getFrqPrompt({ course, unit, difficulty, context }: QuizPromptArgs): string {
+  return (
+    `You are an FRQ quiz generator for ${course.title}, unit "${unit.title}" (${unit.desc}).\n\n` +
+    `Difficulty: ${QUIZ_DIFFICULTY[difficulty]}\n\n` +
+    `Generate ONE AP-style free-response question:\n` +
+    `- Write a quantitative scenario with realistic numbers.\n` +
+    `- Break it into 2-4 parts: **(a) (X pts)** question, **(b) (X pts)** question, etc.\n` +
+    `- Point values: 2-4 pts each. Total must sum to exactly 10 pts.\n` +
+    `- Do NOT include answers, hints, or a scoring guide.` +
+    QUIZ_FORMATTING +
+    quizGrounding(context)
+  );
+}
+
+/** System prompt that grades a student's FRQ response against the question it was given. */
+export function getGradePrompt(question: string, answer: string): string {
+  return (
+    `You are grading a student's FRQ response.\n\n` +
+    `QUESTION:\n${question}\n\n` +
+    `STUDENT RESPONSE:\n${answer}\n\n` +
+    `Grade each part:\n` +
+    `- For each part (a), (b), etc.: write **(a) [X/Y points]** then brief, specific feedback.\n` +
+    `- End with **Total: X/10 points**.\n` +
+    `- If they lost points, name one concept or formula to review.` +
+    QUIZ_FORMATTING
+  );
+}
+
 const FORMATTING_RULES = `
 
 FORMATTING RULES:
