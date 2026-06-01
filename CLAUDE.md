@@ -20,16 +20,32 @@ the course syllabi via RAG (retrieval-augmented generation).
 - **Supabase** — `documents` table with `embedding vector(1024)`, `match_documents()`
   similarity function, HNSW index, RLS (public read, secret-key write).
 - **Voyage AI** — `voyage-3.5` embeddings, 1024 dimensions.
-- **Anthropic API** — for the tutor itself (Milestone 1, not yet wired).
+- **Tutor LLM** — dual-provider in `app/api/chat/route.ts`: Anthropic `claude-opus-4-8`
+  (preferred) or OpenAI `gpt-5-mini` (fallback), chosen by which API key is present.
 - `package.json` has `"type": "module"` (required for the standalone tsx scripts).
 
 ## Current status
 
-Milestone 1 is **built**: the chat tutor is wired end to end (`app/api/chat/route.ts`
-streams Claude through `lib/prompts.ts` + `lib/retrieve.ts`, and `app/page.tsx` renders
-the stream). The only step left is pasting an `ANTHROPIC_API_KEY` into `.env.local` and
-restarting the dev server. Practice quizzes (Milestone 2) and progress (Milestone 3) are
-still stubbed. See `docs/ROADMAP.md` for the authoritative status.
+Milestone 1 is **done and live on localhost**: the chat tutor streams end to end
+(`app/api/chat/route.ts` builds the prompt via `lib/prompts.ts` + `lib/retrieve.ts`,
+and `app/page.tsx` renders the stream). The route is **dual-provider** — it uses
+Anthropic (`claude-opus-4-8`) when `ANTHROPIC_API_KEY` is set, otherwise falls back to
+OpenAI (`gpt-5-mini`) via `OPENAI_API_KEY`. Currently running on the OpenAI bridge until
+the Anthropic key is added (Anthropic is preferred when both are present). Milestone 2
+(practice quizzes) is also **done**: `app/api/quiz/route.ts` (MCQ/FRQ/grade) +
+`lib/llm.ts` + the interactive quiz UI in `app/page.tsx`. Milestone 3 (progress) is
+**done** too: `lib/progress.ts` is a local-only (browser `localStorage`, key
+`socratic_progress_v1`) engine for streaks, weekly goals, and per-unit mastery, wired
+through `app/page.tsx` (rings, stats bar, goal + recap modals). No login / no Supabase
+for progress. Milestone 4 (polish) is **done**: KaTeX math rendering via
+`app/Markdown.tsx` (react-markdown + remark-math + rehype-katex; KaTeX CSS in
+`app/layout.tsx`) and image attachments (📎 in chat → base64 data URL → vision block in
+`app/api/chat/route.ts`). Only Milestone 5 (deploy to Vercel) remains. See
+`docs/ROADMAP.md` for the authoritative status.
+
+NB: `lib/llm.ts` sets `reasoning_effort: "low"` on the OpenAI path — `gpt-5-mini` is a
+reasoning model and otherwise intermittently returns empty completions (hidden reasoning
+eats the whole token budget). The chat route's OpenAI streaming branch does the same.
 
 ## Architecture
 
@@ -45,7 +61,19 @@ still stubbed. See `docs/ROADMAP.md` for the authoritative status.
 - `lib/prompts.ts` — `getSystemPrompt({course, unit, mode, difficulty, context})`;
   ported from the prototype's `getSystemPrompt()` (tutor / checker / general modes).
 - `app/api/chat/route.ts` — the tutor backend: retrieves context, builds the prompt,
-  streams `claude-opus-4-8` (adaptive thinking) back as plain text.
+  streams the reply (Claude `claude-opus-4-8` adaptive thinking, or OpenAI `gpt-5-mini`)
+  back as plain text.
+- `lib/llm.ts` — dual-provider, non-streaming `complete()` helper used by the quiz
+  backend (Anthropic preferred, OpenAI fallback; `reasoning_effort: "low"` on gpt-5).
+- `app/api/quiz/route.ts` — practice-quiz backend (Milestone 2): `mcq` (generate +
+  `parseMcq` into structured choices), `frq` (generate), `grade` (score a response).
+  RAG-grounded by unit topic.
+- `lib/progress.ts` — local-only progress engine (Milestone 3): `Progress` type,
+  `computeMastery`, streak/week helpers, `loadProgress`/`saveProgress` (localStorage,
+  SSR-guarded). Session tracking + modals are wired in `app/page.tsx`.
+- `app/Markdown.tsx` — `<Markdown>` component (Milestone 4): renders tutor/quiz text as
+  Markdown + LaTeX (react-markdown + remark-math + rehype-katex), strips em/en dashes.
+  Use `inline` for inline contexts (e.g. MCQ choices). KaTeX CSS is imported in layout.
 - `scripts/ingest.ts` — CLI ingestion (uses **pdf-parse v2**: `new PDFParse({data}).getText()`,
   not v1's default export). Uses `SUPABASE_SECRET_KEY` (bypasses RLS to write).
 - `scripts/retrieve-test.ts` — manual retrieval test; dynamically imports `retrieve.ts`

@@ -2,12 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Markdown } from "./Markdown";
 import {
   classes,
   starterPromptsByUnit,
   type CourseKey,
   type Unit,
 } from "@/lib/courses";
+import {
+  type Progress,
+  defaultProgress,
+  loadProgress,
+  saveProgress,
+  rollWeekIfNeeded,
+  getUnitStats,
+  computeMastery,
+  defaultUnitStats,
+  todayKey,
+  daysBetween,
+  relativeTime,
+  unitKey,
+  nowMs,
+} from "@/lib/progress";
 
 // Shared motion presets for the refreshed UI.
 const pageVariants = {
@@ -31,10 +47,44 @@ type Mode = "tutor" | "checker";
 type Difficulty = "warmup" | "standard" | "challenge";
 type UnitView = "chat" | "practice";
 type PracticeMode = "mcq" | "frq";
+type QuizPhase = "idle" | "loading" | "active" | "grading";
+type ChoiceLetter = "A" | "B" | "C" | "D";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  image?: string; // data URL (base64) for an attached image on a user turn
+}
+
+interface McqData {
+  question: string;
+  choices: Record<ChoiceLetter, string>;
+  correct: ChoiceLetter;
+  explanation: string;
+}
+
+// A study session = continuous time in one unit. Counts toward streak/weekly
+// goal only once it has at least one attempted problem.
+interface StudySession {
+  courseKey: CourseKey;
+  unitId: string;
+  startedAt: number;
+  problemsAttempted: number;
+  problemsSolved: number;
+  hintsUsed: number;
+  startMastery: number;
+  counted: boolean;
+}
+
+interface RecapData {
+  unitTitle: string;
+  courseTitle: string;
+  minutes: number;
+  attempted: number;
+  solved: number;
+  hints: number;
+  delta: number;
+  mastery: number;
 }
 
 // Mastery ring shown on unit cards. Static (0%) until the progress engine is wired.
@@ -80,22 +130,171 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Practice-quiz state (Milestone 2).
+  const [quizPhase, setQuizPhase] = useState<QuizPhase>("idle");
+  const [quizNum, setQuizNum] = useState(0);
+  const [quizCorrect, setQuizCorrect] = useState(0);
+  const [quizTotal, setQuizTotal] = useState(0);
+  const [quizError, setQuizError] = useState<string | null>(null);
+  const [mcq, setMcq] = useState<McqData | null>(null);
+  const [mcqPicked, setMcqPicked] = useState<ChoiceLetter | null>(null);
+  const [frqQuestion, setFrqQuestion] = useState("");
+  const [frqAnswer, setFrqAnswer] = useState("");
+  const [frqFeedback, setFrqFeedback] = useState("");
+
+  // Progress engine (Milestone 3) — local to this device via localStorage.
+  const [progress, setProgress] = useState<Progress>(defaultProgress);
+  const sessionRef = useRef<StudySession | null>(null);
+  const [goalModalOpen, setGoalModalOpen] = useState(false);
+  const [goalDraft, setGoalDraft] = useState(3);
+  const [recap, setRecap] = useState<RecapData | null>(null);
+
+  // Hydrate from localStorage after mount. This MUST be an effect (not a lazy
+  // initializer): localStorage is unavailable during SSR, so reading it at init
+  // would desync server/client HTML. Setting state once on mount is the correct
+  // pattern here, hence the targeted lint suppression.
+  useEffect(() => {
+    const p = loadProgress();
+    rollWeekIfNeeded(p);
+    saveProgress(p);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only localStorage hydration
+    setProgress(p);
+  }, []);
+
+  // Apply a mutation to a fresh copy of progress, persist it, and re-render.
+  function mutateProgress(fn: (p: Progress) => void) {
+    setProgress((prev) => {
+      const next: Progress = JSON.parse(JSON.stringify(prev));
+      fn(next);
+      saveProgress(next);
+      return next;
+    });
+  }
+
+  // Begin a study session for the given unit (idempotent for the active unit).
+  function startSession(courseKey: CourseKey, unit: Unit) {
+    const cur = sessionRef.current;
+    if (cur && cur.courseKey === courseKey && cur.unitId === unit.id) return;
+    sessionRef.current = {
+      courseKey,
+      unitId: unit.id,
+      startedAt: nowMs(),
+      problemsAttempted: 0,
+      problemsSolved: 0,
+      hintsUsed: 0,
+      startMastery: getUnitStats(progress, courseKey, unit.id).masteryScore,
+      counted: false,
+    };
+  }
+
+  // Record one attempted problem (from chat "I solved it", or a quiz answer).
+  function recordProblem(solved: boolean) {
+    const sess = sessionRef.current;
+    if (!sess) return;
+    sess.problemsAttempted += 1;
+    if (solved) sess.problemsSolved += 1;
+    mutateProgress((p) => {
+      const k = unitKey(sess.courseKey, sess.unitId);
+      const stats = p.units[k] ?? defaultUnitStats();
+      stats.problemsAttempted += 1;
+      if (solved) stats.problemsSolved += 1;
+      stats.lastVisited = nowMs();
+      stats.masteryScore = computeMastery(stats);
+      p.units[k] = stats;
+      p.totalProblems += 1;
+    });
+  }
+
+  // Record one hint used (lightly lowers mastery; tracked per session for recap).
+  function recordHintProgress() {
+    const sess = sessionRef.current;
+    if (!sess) return;
+    sess.hintsUsed += 1;
+    mutateProgress((p) => {
+      const k = unitKey(sess.courseKey, sess.unitId);
+      const stats = p.units[k] ?? defaultUnitStats();
+      stats.hintsUsed += 1;
+      stats.lastVisited = nowMs();
+      stats.masteryScore = computeMastery(stats);
+      p.units[k] = stats;
+    });
+  }
+
+  // End the active session. Counts it toward streak + weekly goal (once) if at
+  // least one problem was attempted, and optionally surfaces a recap modal.
+  function endSession(showRecap: boolean) {
+    const sess = sessionRef.current;
+    sessionRef.current = null;
+    if (!sess || sess.problemsAttempted < 1) return;
+
+    // Decide counting + mutate the (local) session flag OUTSIDE the state updater
+    // so the updater stays pure (React StrictMode double-invokes updaters in dev).
+    const shouldCount = !sess.counted;
+    sess.counted = true;
+
+    if (shouldCount) {
+      mutateProgress((p) => {
+        const today = todayKey();
+        const s = p.streak;
+        if (s.lastStudyDate !== today) {
+          if (s.lastStudyDate) {
+            const gap = daysBetween(s.lastStudyDate, nowMs());
+            if (gap === 1) s.currentStreak += 1;
+            else if (gap > 1) s.currentStreak = 1;
+          } else {
+            s.currentStreak = 1;
+          }
+          s.lastStudyDate = today;
+          if (s.currentStreak > s.longestStreak) s.longestStreak = s.currentStreak;
+        }
+        rollWeekIfNeeded(p);
+        p.weeklyGoal.sessionsThisWeek += 1;
+      });
+    }
+
+    if (showRecap) {
+      // endSession does not change unit mastery, so reading current state is correct.
+      const cls = classes[sess.courseKey];
+      const unit = cls.units.find((u) => u.id === sess.unitId);
+      const stats = getUnitStats(progress, sess.courseKey, sess.unitId);
+      setRecap({
+        unitTitle: unit?.title ?? "",
+        courseTitle: cls.title,
+        minutes: Math.max(1, Math.round((nowMs() - sess.startedAt) / 60000)),
+        attempted: sess.problemsAttempted,
+        solved: sess.problemsSolved,
+        hints: sess.hintsUsed,
+        delta: stats.masteryScore - sess.startMastery,
+        mastery: stats.masteryScore,
+      });
+    }
+  }
+
+  function saveGoal() {
+    const v = Math.round(goalDraft);
+    if (v >= 1 && v <= 14) {
+      mutateProgress((p) => {
+        p.weeklyGoal.target = v;
+      });
+    }
+    setGoalModalOpen(false);
+  }
 
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 2600);
   }
 
-  // Practice quizzes (Milestone 2) and progress (Milestone 3) aren't wired yet.
-  const SOON =
-    "Practice quizzes are the next build step. The chat tutor below is fully working.";
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   function goHome() {
+    endSession(true);
     setView("home");
     setCurrentClass(null);
     setCurrentUnit(null);
@@ -107,14 +306,40 @@ export default function Home() {
   }
 
   function openUnit(unit: Unit) {
+    if (!currentClass) return;
+    endSession(false); // close any stale session before switching units
     setCurrentUnit(unit);
     setUnitView("chat");
     setInput("");
     resetChat();
+    resetQuiz();
+    startSession(currentClass, unit);
     setView("unit");
   }
 
+  // Clear the practice session (score + current question). Called on unit change
+  // and when toggling between MCQ and FRQ so scores don't mix across modes.
+  function resetQuiz() {
+    setQuizPhase("idle");
+    setQuizNum(0);
+    setQuizCorrect(0);
+    setQuizTotal(0);
+    setQuizError(null);
+    setMcq(null);
+    setMcqPicked(null);
+    setFrqQuestion("");
+    setFrqAnswer("");
+    setFrqFeedback("");
+  }
+
+  function switchPracticeMode(pm: PracticeMode) {
+    if (pm === practiceMode) return;
+    setPracticeMode(pm);
+    resetQuiz();
+  }
+
   function goBackToClass() {
+    endSession(true);
     setView("class");
     setCurrentUnit(null);
   }
@@ -123,6 +348,7 @@ export default function Home() {
     setMessages([]);
     setHintsUsed(0);
     setIsStreaming(false);
+    setPendingImage(null);
   }
 
   const course = currentClass ? classes[currentClass] : null;
@@ -182,13 +408,42 @@ export default function Home() {
   }
 
   function onSend() {
-    sendUserText(input);
+    if (isStreaming) return;
+    const trimmed = input.trim();
+    // Allow sending an image with no text (e.g. "check my handwritten work").
+    if (!trimmed && !pendingImage) return;
+    const userMsg: ChatMessage = { role: "user", content: trimmed };
+    if (pendingImage) userMsg.image = pendingImage;
+    const history = [...messages, userMsg];
+    setInput("");
+    setPendingImage(null);
+    void callTutor(history);
+  }
+
+  // Read a chosen image file into a base64 data URL for preview + sending.
+  function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showToast("Please choose an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image is too large (max 5 MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setPendingImage(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => showToast("Could not read that image.");
+    reader.readAsDataURL(file);
   }
 
   // Hint buttons send canned requests and count toward the "show answer" gate.
   function requestHint(kind: "smaller" | "bigger") {
     if (isStreaming) return;
     setHintsUsed((n) => n + 1);
+    recordHintProgress();
     sendUserText(
       kind === "smaller"
         ? "Can I have a smaller hint?"
@@ -204,6 +459,7 @@ export default function Home() {
   function markSolved() {
     if (isStreaming) return;
     setHintsUsed(0);
+    recordProblem(true);
     sendUserText("I solved it! Can you confirm my approach was right and give me a quick takeaway?");
   }
 
@@ -233,6 +489,105 @@ export default function Home() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  // ---------- Practice quizzes (Milestone 2) ----------
+
+  // Fetch the next question for the current mode. Used by both "Start Practice"
+  // and "Next question".
+  async function fetchQuestion() {
+    if (!currentClass || !currentUnit) return;
+    setQuizError(null);
+    setMcq(null);
+    setMcqPicked(null);
+    setFrqQuestion("");
+    setFrqAnswer("");
+    setFrqFeedback("");
+    setQuizPhase("loading");
+
+    try {
+      const res = await fetch("/api/quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: practiceMode,
+          course: currentClass,
+          unitId: currentUnit.id,
+          difficulty: practiceDiff,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+
+      setQuizNum((n) => n + 1);
+      if (practiceMode === "mcq") {
+        setMcq(data.mcq as McqData);
+      } else {
+        setFrqQuestion(data.frq as string);
+      }
+      setQuizPhase("active");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      setQuizError(msg);
+      setQuizPhase("idle");
+      showToast(msg);
+    }
+  }
+
+  function handleMcqChoice(letter: ChoiceLetter) {
+    if (!mcq || mcqPicked) return; // lock after first pick
+    setMcqPicked(letter);
+    setQuizTotal((t) => t + 1);
+    const correct = letter === mcq.correct;
+    if (correct) setQuizCorrect((c) => c + 1);
+    recordProblem(correct); // counts toward mastery + this study session
+  }
+
+  async function submitFrq() {
+    if (!currentClass || !currentUnit) return;
+    if (!frqAnswer.trim()) {
+      showToast("Write your response before submitting.");
+      return;
+    }
+    setQuizPhase("grading");
+    setQuizError(null);
+    try {
+      const res = await fetch("/api/quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "grade",
+          course: currentClass,
+          unitId: currentUnit.id,
+          difficulty: practiceDiff,
+          question: frqQuestion,
+          answer: frqAnswer,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+      setFrqFeedback(data.feedback as string);
+      setQuizTotal((t) => t + 1);
+      recordProblem(true); // a completed + graded FRQ counts as a solved problem
+      setQuizPhase("active");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      setQuizError(msg);
+      setQuizPhase("active");
+      showToast(msg);
+    }
+  }
+
+  // Score label + progress bar width, computed per mode.
+  const quizScoreLabel =
+    practiceMode === "mcq"
+      ? `${quizCorrect} / ${quizTotal} correct`
+      : `${quizTotal} completed`;
+  const quizScorePct =
+    practiceMode === "mcq"
+      ? quizTotal > 0
+        ? Math.round((quizCorrect / quizTotal) * 100)
+        : 0
+      : Math.min(100, quizTotal * 20);
 
   return (
     <div className="container">
@@ -284,10 +639,16 @@ export default function Home() {
           </div>
 
           <div className="stats-bar">
-            <div className="stat" title="Longest streak: 0 days">
+            <div
+              className="stat"
+              title={`Longest streak: ${progress.streak.longestStreak} days`}
+            >
               <div className="stat-icon flame">🔥</div>
               <div className="stat-body">
-                <div className="stat-value">0 days</div>
+                <div className="stat-value">
+                  {progress.streak.currentStreak}{" "}
+                  {progress.streak.currentStreak === 1 ? "day" : "days"}
+                </div>
                 <div className="stat-label">Streak</div>
               </div>
             </div>
@@ -296,10 +657,34 @@ export default function Home() {
               <div className="stat-icon">🎯</div>
               <div className="stat-body" style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span className="stat-value">0 / 3 sessions</span>
+                  <span className="stat-value">
+                    {progress.weeklyGoal.sessionsThisWeek} / {progress.weeklyGoal.target}{" "}
+                    sessions
+                  </span>
+                  <button
+                    className="goal-edit-btn"
+                    onClick={() => {
+                      setGoalDraft(progress.weeklyGoal.target);
+                      setGoalModalOpen(true);
+                    }}
+                  >
+                    edit
+                  </button>
                 </div>
                 <div className="goal-bar-track">
-                  <div className="goal-bar-fill" style={{ width: "0%" }} />
+                  <div
+                    className="goal-bar-fill"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round(
+                          (progress.weeklyGoal.sessionsThisWeek /
+                            progress.weeklyGoal.target) *
+                            100,
+                        ),
+                      )}%`,
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -307,7 +692,7 @@ export default function Home() {
             <div className="stat">
               <div className="stat-icon">📚</div>
               <div className="stat-body">
-                <div className="stat-value">0</div>
+                <div className="stat-value">{progress.totalProblems}</div>
                 <div className="stat-label">Problems all-time</div>
               </div>
             </div>
@@ -370,25 +755,34 @@ export default function Home() {
             initial="initial"
             animate="animate"
           >
-            {course.units.map((unit) => (
-              <motion.div
-                className="card"
-                key={unit.id}
-                onClick={() => openUnit(unit)}
-                variants={cardVariants}
-                whileHover={{ y: -4 }}
-                whileTap={{ scale: 0.99 }}
-              >
-                <div className="card-top">
-                  <div className="card-text">
-                    <div className="card-title">{unit.title}</div>
-                    <div className="card-desc">{unit.desc}</div>
+            {course.units.map((unit) => {
+              const stats = currentClass
+                ? getUnitStats(progress, currentClass, unit.id)
+                : defaultUnitStats();
+              return (
+                <motion.div
+                  className="card"
+                  key={unit.id}
+                  onClick={() => openUnit(unit)}
+                  variants={cardVariants}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.99 }}
+                >
+                  <div className="card-top">
+                    <div className="card-text">
+                      <div className="card-title">{unit.title}</div>
+                      <div className="card-desc">{unit.desc}</div>
+                    </div>
+                    <Ring percent={stats.masteryScore} />
                   </div>
-                  <Ring percent={0} />
-                </div>
-                <div className="last-visited">Not started yet</div>
-              </motion.div>
-            ))}
+                  <div className="last-visited">
+                    {stats.lastVisited
+                      ? `Last practiced ${relativeTime(stats.lastVisited)}`
+                      : "Not started yet"}
+                  </div>
+                </motion.div>
+              );
+            })}
           </motion.div>
         </motion.div>
       )}
@@ -480,10 +874,23 @@ export default function Home() {
                     key={i}
                     className={"message " + (m.role === "user" ? "user" : "tutor")}
                   >
-                    <p style={{ whiteSpace: "pre-wrap" }}>
-                      {m.content ||
-                        (isStreaming && i === messages.length - 1 ? "…" : "")}
-                    </p>
+                    {m.role === "assistant" ? (
+                      m.content ? (
+                        <Markdown className="md">{m.content}</Markdown>
+                      ) : (
+                        <p>{isStreaming && i === messages.length - 1 ? "…" : ""}</p>
+                      )
+                    ) : (
+                      <>
+                        {m.image && (
+                          // eslint-disable-next-line @next/next/no-img-element -- user-supplied base64 data URL, not a static asset
+                          <img className="message-image" src={m.image} alt="Attached work" />
+                        )}
+                        {m.content && (
+                          <p style={{ whiteSpace: "pre-wrap" }}>{m.content}</p>
+                        )}
+                      </>
+                    )}
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
@@ -542,11 +949,42 @@ export default function Home() {
                 </button>
               </div>
 
+              {pendingImage && (
+                <div className="attach-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- local base64 preview */}
+                  <img src={pendingImage} alt="Attachment preview" />
+                  <button
+                    className="attach-remove"
+                    onClick={() => setPendingImage(null)}
+                    title="Remove image"
+                    aria-label="Remove image"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               <div className="input-area">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={onPickImage}
+                />
+                <button
+                  className="attach-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming}
+                  title="Attach an image (e.g. your handwritten work)"
+                  aria-label="Attach an image"
+                >
+                  📎
+                </button>
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your answer or thought..."
+                  placeholder="Type your answer, or attach a photo of your work..."
                   rows={1}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -558,7 +996,7 @@ export default function Home() {
                 <button
                   className="send-btn"
                   onClick={onSend}
-                  disabled={isStreaming || !input.trim()}
+                  disabled={isStreaming || (!input.trim() && !pendingImage)}
                 >
                   {isStreaming ? "…" : "Send"}
                 </button>
@@ -575,7 +1013,7 @@ export default function Home() {
                     <button
                       key={pm}
                       className={"quiz-pill-btn" + (practiceMode === pm ? " active" : "")}
-                      onClick={() => setPracticeMode(pm)}
+                      onClick={() => switchPracticeMode(pm)}
                     >
                       {pm.toUpperCase()}
                     </button>
@@ -593,23 +1031,142 @@ export default function Home() {
                   ))}
                 </div>
                 <div className="quiz-score-area">
-                  <span className="quiz-score-label">0 / 0</span>
+                  <span className="quiz-score-label">{quizScoreLabel}</span>
                   <div className="quiz-score-track">
-                    <div className="quiz-score-fill" style={{ width: "0%" }} />
+                    <div
+                      className="quiz-score-fill"
+                      style={{ width: `${quizScorePct}%` }}
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="quiz-start-card">
-                <h2>Ready to practice?</h2>
-                <p>
-                  Test your knowledge with AI-generated {practiceMode.toUpperCase()}{" "}
-                  questions unique to this unit.
-                </p>
-                <button className="quiz-begin-btn" onClick={() => showToast(SOON)}>
-                  Start Practice →
-                </button>
-              </div>
+              {/* Start card — shown before the first question of a session. */}
+              {quizPhase === "idle" && (
+                <div className="quiz-start-card">
+                  <h2>Ready to practice?</h2>
+                  <p>
+                    Test your knowledge with AI-generated {practiceMode.toUpperCase()}{" "}
+                    questions unique to this unit, grounded in your syllabus.
+                  </p>
+                  <button className="quiz-begin-btn" onClick={fetchQuestion}>
+                    Start Practice →
+                  </button>
+                  {quizError && <p className="quiz-error">{quizError}</p>}
+                </div>
+              )}
+
+              {/* Loading a new question. */}
+              {quizPhase === "loading" && (
+                <div className="quiz-loading-state">
+                  <span className="quiz-spinner" />
+                  <p>Generating your {practiceMode.toUpperCase()} question...</p>
+                </div>
+              )}
+
+              {/* MCQ card. */}
+              {practiceMode === "mcq" && mcq && quizPhase !== "loading" && (
+                <div className="quiz-card">
+                  <div className="quiz-q-meta">
+                    <span className="quiz-q-num">Q{quizNum}</span>
+                    <span className="quiz-q-dot" />
+                    <span className="quiz-q-topic">{currentUnit.title}</span>
+                  </div>
+                  <Markdown className="quiz-question">{mcq.question}</Markdown>
+                  <div className="quiz-choices">
+                    {(["A", "B", "C", "D"] as ChoiceLetter[]).map((letter) => {
+                      let cls = "quiz-choice";
+                      if (mcqPicked) {
+                        if (letter === mcq.correct) cls += " correct";
+                        else if (letter === mcqPicked) cls += " incorrect";
+                      }
+                      return (
+                        <button
+                          key={letter}
+                          className={cls}
+                          disabled={!!mcqPicked}
+                          onClick={() => handleMcqChoice(letter)}
+                        >
+                          <span className="quiz-choice-ltr">{letter}</span>
+                          <Markdown inline className="quiz-choice-text">
+                            {mcq.choices[letter]}
+                          </Markdown>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {mcqPicked && (
+                    <div
+                      className={
+                        "quiz-feedback " +
+                        (mcqPicked === mcq.correct ? "correct" : "incorrect")
+                      }
+                    >
+                      <div className="quiz-feedback-verdict">
+                        {mcqPicked === mcq.correct
+                          ? "✓ Correct!"
+                          : `✗ Incorrect — the answer was ${mcq.correct})`}
+                      </div>
+                      {mcq.explanation && <Markdown>{mcq.explanation}</Markdown>}
+                    </div>
+                  )}
+
+                  {mcqPicked && (
+                    <div className="quiz-action-row">
+                      <button className="quiz-next-btn" onClick={fetchQuestion}>
+                        Next question →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* FRQ card. */}
+              {practiceMode === "frq" && frqQuestion && quizPhase !== "loading" && (
+                <div className="quiz-card">
+                  <div className="quiz-q-meta">
+                    <span className="quiz-q-num">Q{quizNum}</span>
+                    <span className="quiz-q-dot" />
+                    <span className="quiz-q-topic">{currentUnit.title}</span>
+                  </div>
+                  <Markdown className="quiz-question">{frqQuestion}</Markdown>
+
+                  {!frqFeedback && (
+                    <>
+                      <label className="quiz-frq-label">Your Response</label>
+                      <textarea
+                        className="quiz-frq-textarea"
+                        value={frqAnswer}
+                        onChange={(e) => setFrqAnswer(e.target.value)}
+                        placeholder="Show all work. Include equations, steps, and units..."
+                        disabled={quizPhase === "grading"}
+                      />
+                      <div className="quiz-action-row">
+                        <button
+                          className="quiz-submit-btn"
+                          onClick={submitFrq}
+                          disabled={quizPhase === "grading"}
+                        >
+                          {quizPhase === "grading" ? "Grading..." : "Submit for Grading"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {frqFeedback && (
+                    <>
+                      <Markdown className="quiz-frq-feedback">{frqFeedback}</Markdown>
+                      <div className="quiz-action-row">
+                        <button className="quiz-next-btn" onClick={fetchQuestion}>
+                          Next question →
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {quizError && <p className="quiz-error">{quizError}</p>}
+                </div>
+              )}
             </div>
           )}
         </motion.div>
@@ -626,6 +1183,116 @@ export default function Home() {
             transition={{ duration: 0.25 }}
           >
             {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Weekly-goal editor (Milestone 3). */}
+      <AnimatePresence>
+        {goalModalOpen && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setGoalModalOpen(false);
+            }}
+          >
+            <motion.div
+              className="modal"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            >
+              <h3>Weekly goal</h3>
+              <p className="modal-sub">
+                How many study sessions per week are you aiming for? (A session = 1+
+                problems attempted.)
+              </p>
+              <input
+                type="number"
+                className="goal-input"
+                min={1}
+                max={14}
+                value={goalDraft}
+                onChange={(e) => setGoalDraft(Number(e.target.value))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveGoal();
+                }}
+                autoFocus
+              />
+              <div className="modal-actions">
+                <button className="modal-btn" onClick={() => setGoalModalOpen(false)}>
+                  Cancel
+                </button>
+                <button className="modal-btn primary" onClick={saveGoal}>
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Session recap (Milestone 3) — shown when leaving a unit you practiced in. */}
+      <AnimatePresence>
+        {recap && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setRecap(null);
+            }}
+          >
+            <motion.div
+              className="modal"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            >
+              <h3>Session recap</h3>
+              <p className="modal-sub">
+                {recap.unitTitle} · {recap.courseTitle}
+              </p>
+              <div className="recap-grid">
+                <div className="recap-tile">
+                  <div className="recap-tile-value">{recap.minutes} min</div>
+                  <div className="recap-tile-label">Time</div>
+                </div>
+                <div className="recap-tile">
+                  <div className="recap-tile-value">{recap.attempted}</div>
+                  <div className="recap-tile-label">
+                    Problem{recap.attempted === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <div className="recap-tile">
+                  <div className="recap-tile-value">{recap.solved}</div>
+                  <div className="recap-tile-label">Solved</div>
+                </div>
+                <div className="recap-tile">
+                  <div className="recap-tile-value">{recap.hints}</div>
+                  <div className="recap-tile-label">Hints used</div>
+                </div>
+              </div>
+              <div className="recap-mastery-row">
+                <div className="recap-mastery-delta">
+                  {recap.delta >= 0 ? "+" : ""}
+                  {recap.delta}
+                </div>
+                <div className="recap-mastery-text">
+                  Mastery now <strong>{recap.mastery}</strong> / 100
+                  {recap.delta > 0 ? ". Keep it up." : ""}
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button className="modal-btn primary" onClick={() => setRecap(null)}>
+                  Done
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
