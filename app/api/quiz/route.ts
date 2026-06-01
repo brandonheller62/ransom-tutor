@@ -34,6 +34,7 @@ interface QuizRequest {
   difficulty: Difficulty;
   question?: string; // for "grade"
   answer?: string; // for "grade"
+  image?: string; // for "grade" — data URL of a photo of handwritten work
 }
 
 export interface McqData {
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { action, course, unitId, difficulty, question, answer } = body;
+  const { action, course, unitId, difficulty, question, answer, image } = body;
 
   const courseData = classes[course];
   if (!courseData) {
@@ -90,14 +91,26 @@ export async function POST(req: Request) {
   try {
     // Grading needs no fresh generation context; it works from the question text.
     if (action === "grade") {
-      if (!question || !answer?.trim()) {
+      const hasText = !!answer?.trim();
+      if (!question || (!hasText && !image)) {
         return Response.json(
-          { error: "Grading requires both a question and a student answer." },
+          {
+            error:
+              "Grading requires a question and either a written answer or an attached image.",
+          },
           { status: 400 },
         );
       }
-      const feedback = await complete(getGradePrompt(question, answer), [
-        { role: "user", content: "Grade my response per the instructions." },
+      // The student's work may be typed, photographed, or both.
+      const responseText = hasText
+        ? answer!.trim()
+        : "(The student's full response is in the attached image.)";
+      const feedback = await complete(getGradePrompt(question, responseText), [
+        {
+          role: "user",
+          content: "Grade my response per the instructions.",
+          image: image || undefined,
+        },
       ]);
       return Response.json({ feedback });
     }
