@@ -10,6 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { parseDataUrl } from "./image";
 
 const OPENAI_MODEL = "gpt-5-mini";
 const ANTHROPIC_MODEL = "claude-opus-4-8";
@@ -17,6 +18,7 @@ const ANTHROPIC_MODEL = "claude-opus-4-8";
 export interface LlmMessage {
   role: "user" | "assistant";
   content: string;
+  image?: string; // data URL (base64) for an attached image on a user turn
 }
 
 export function activeProvider(): "anthropic" | "openai" | null {
@@ -40,11 +42,24 @@ export async function complete(
 
   if (provider === "anthropic") {
     const client = new Anthropic();
+    const anthropicMessages: Anthropic.MessageParam[] = messages.map((m) => {
+      const img = m.role === "user" && m.image ? parseDataUrl(m.image) : null;
+      if (img) {
+        const blocks: Anthropic.ContentBlockParam[] = [];
+        if (m.content) blocks.push({ type: "text", text: m.content });
+        blocks.push({
+          type: "image",
+          source: { type: "base64", media_type: img.mediaType, data: img.data },
+        });
+        return { role: m.role, content: blocks };
+      }
+      return { role: m.role, content: m.content };
+    });
     const res = await client.messages.create({
       model: ANTHROPIC_MODEL,
       max_tokens: maxTokens,
       system,
-      messages,
+      messages: anthropicMessages,
     });
     return res.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
@@ -54,6 +69,15 @@ export async function complete(
   }
 
   const client = new OpenAI();
+  const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = messages.map((m) => {
+    if (m.role === "user" && m.image) {
+      const parts: OpenAI.Chat.ChatCompletionContentPart[] = [];
+      if (m.content) parts.push({ type: "text", text: m.content });
+      parts.push({ type: "image_url", image_url: { url: m.image } });
+      return { role: "user", content: parts };
+    }
+    return { role: m.role, content: m.content };
+  });
   const res = await client.chat.completions.create({
     model: OPENAI_MODEL,
     // gpt-5 reasoning models spend completion tokens on hidden reasoning first.
@@ -61,7 +85,7 @@ export async function complete(
     // and give a generous ceiling.
     max_completion_tokens: Math.max(maxTokens, 4096),
     reasoning_effort: "low",
-    messages: [{ role: "system", content: system }, ...messages],
+    messages: [{ role: "system", content: system }, ...openaiMessages],
   });
   return (res.choices[0]?.message?.content ?? "").trim();
 }

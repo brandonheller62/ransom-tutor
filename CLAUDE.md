@@ -39,8 +39,9 @@ the Anthropic key is added (Anthropic is preferred when both are present). Miles
 through `app/page.tsx` (rings, stats bar, goal + recap modals). No login / no Supabase
 for progress. Milestone 4 (polish) is **done**: KaTeX math rendering via
 `app/Markdown.tsx` (react-markdown + remark-math + rehype-katex; KaTeX CSS in
-`app/layout.tsx`) and image attachments (📎 in chat → base64 data URL → vision block in
-`app/api/chat/route.ts`). Only Milestone 5 (deploy to Vercel) remains. See
+`app/layout.tsx`) and image attachments (📎 → base64 data URL → vision block) in BOTH the chat tutor
+(`app/api/chat/route.ts`) and the FRQ grader (`app/api/quiz/route.ts` via `lib/llm.ts`),
+sharing `lib/image.ts` (`parseDataUrl`). Only Milestone 5 (deploy to Vercel) remains. See
 `docs/ROADMAP.md` for the authoritative status.
 
 NB: `lib/llm.ts` sets `reasoning_effort: "low"` on the OpenAI path — `gpt-5-mini` is a

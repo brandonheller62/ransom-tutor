@@ -145,6 +145,8 @@ export default function Home() {
   const [frqQuestion, setFrqQuestion] = useState("");
   const [frqAnswer, setFrqAnswer] = useState("");
   const [frqFeedback, setFrqFeedback] = useState("");
+  const [frqImage, setFrqImage] = useState<string | null>(null);
+  const frqFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Progress engine (Milestone 3) — local to this device via localStorage.
   const [progress, setProgress] = useState<Progress>(defaultProgress);
@@ -330,6 +332,7 @@ export default function Home() {
     setFrqQuestion("");
     setFrqAnswer("");
     setFrqFeedback("");
+    setFrqImage(null);
   }
 
   function switchPracticeMode(pm: PracticeMode) {
@@ -420,8 +423,12 @@ export default function Home() {
     void callTutor(history);
   }
 
-  // Read a chosen image file into a base64 data URL for preview + sending.
-  function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+  // Validate + read a chosen image file into a base64 data URL, then hand it to
+  // the given setter. Shared by the chat tutor and the FRQ grader.
+  function readImageFile(
+    e: React.ChangeEvent<HTMLInputElement>,
+    set: (url: string) => void,
+  ) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file later
     if (!file) return;
@@ -434,7 +441,9 @@ export default function Home() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setPendingImage(typeof reader.result === "string" ? reader.result : null);
+    reader.onload = () => {
+      if (typeof reader.result === "string") set(reader.result);
+    };
     reader.onerror = () => showToast("Could not read that image.");
     reader.readAsDataURL(file);
   }
@@ -502,6 +511,7 @@ export default function Home() {
     setFrqQuestion("");
     setFrqAnswer("");
     setFrqFeedback("");
+    setFrqImage(null);
     setQuizPhase("loading");
 
     try {
@@ -544,8 +554,9 @@ export default function Home() {
 
   async function submitFrq() {
     if (!currentClass || !currentUnit) return;
-    if (!frqAnswer.trim()) {
-      showToast("Write your response before submitting.");
+    // Accept a typed answer, a photo of handwritten work, or both.
+    if (!frqAnswer.trim() && !frqImage) {
+      showToast("Write your response or attach a photo before submitting.");
       return;
     }
     setQuizPhase("grading");
@@ -561,6 +572,7 @@ export default function Home() {
           difficulty: practiceDiff,
           question: frqQuestion,
           answer: frqAnswer,
+          image: frqImage || undefined,
         }),
       });
       const data = await res.json();
@@ -970,7 +982,7 @@ export default function Home() {
                   type="file"
                   accept="image/*"
                   style={{ display: "none" }}
-                  onChange={onPickImage}
+                  onChange={(e) => readImageFile(e, setPendingImage)}
                 />
                 <button
                   className="attach-btn"
@@ -1139,10 +1151,42 @@ export default function Home() {
                         className="quiz-frq-textarea"
                         value={frqAnswer}
                         onChange={(e) => setFrqAnswer(e.target.value)}
-                        placeholder="Show all work. Include equations, steps, and units..."
+                        placeholder="Show all work. Include equations, steps, and units... or attach a photo of your handwritten work."
                         disabled={quizPhase === "grading"}
                       />
+
+                      <input
+                        ref={frqFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => readImageFile(e, setFrqImage)}
+                      />
+                      {frqImage && (
+                        <div className="attach-preview">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- local base64 preview */}
+                          <img src={frqImage} alt="Attached work preview" />
+                          <button
+                            className="attach-remove"
+                            onClick={() => setFrqImage(null)}
+                            title="Remove image"
+                            aria-label="Remove image"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+
                       <div className="quiz-action-row">
+                        <button
+                          className="attach-btn"
+                          onClick={() => frqFileInputRef.current?.click()}
+                          disabled={quizPhase === "grading"}
+                          title="Attach a photo of your handwritten work"
+                          aria-label="Attach an image"
+                        >
+                          📎
+                        </button>
                         <button
                           className="quiz-submit-btn"
                           onClick={submitFrq}
@@ -1156,6 +1200,10 @@ export default function Home() {
 
                   {frqFeedback && (
                     <>
+                      {frqImage && (
+                        // eslint-disable-next-line @next/next/no-img-element -- user-supplied base64 data URL
+                        <img className="message-image" src={frqImage} alt="Your submitted work" />
+                      )}
                       <Markdown className="quiz-frq-feedback">{frqFeedback}</Markdown>
                       <div className="quiz-action-row">
                         <button className="quiz-next-btn" onClick={fetchQuestion}>

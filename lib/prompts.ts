@@ -81,6 +81,8 @@ export function getGradePrompt(question: string, answer: string): string {
     `You are grading a student's FRQ response.\n\n` +
     `QUESTION:\n${question}\n\n` +
     `STUDENT RESPONSE:\n${answer}\n\n` +
+    `If an image is attached, the student's handwritten work is in it: read it carefully ` +
+    `(equations, diagrams, steps, units) and grade from what you see.\n\n` +
     `Grade each part:\n` +
     `- For each part (a), (b), etc.: write **(a) [X/Y points]** then brief, specific feedback.\n` +
     `- End with **Total: X/10 points**.\n` +

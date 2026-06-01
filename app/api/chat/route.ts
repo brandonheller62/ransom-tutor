@@ -18,6 +18,7 @@ import OpenAI from "openai";
 import { classes, type CourseKey } from "@/lib/courses";
 import { retrieveContext } from "@/lib/retrieve";
 import { getSystemPrompt, type Difficulty, type Mode } from "@/lib/prompts";
+import { parseDataUrl } from "@/lib/image";
 
 export const runtime = "nodejs";
 
@@ -34,18 +35,6 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   image?: string; // data URL (base64) for an attached image on a user turn
-}
-
-const IMAGE_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
-type ImageMediaType = (typeof IMAGE_MEDIA_TYPES)[number];
-
-/** Split a `data:<media>;base64,<data>` URL into parts (or null if malformed/unsupported). */
-function parseDataUrl(dataUrl: string): { mediaType: ImageMediaType; data: string } | null {
-  const m = dataUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
-  if (!m) return null;
-  const mediaType = m[1] as ImageMediaType;
-  if (!IMAGE_MEDIA_TYPES.includes(mediaType)) return null;
-  return { mediaType, data: m[2] };
 }
 
 interface ChatRequest {
