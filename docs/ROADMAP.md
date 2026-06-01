@@ -104,11 +104,12 @@ Supabase) — simplest for a single shared device. Implemented in `lib/progress.
   stripper ported from the prototype. KaTeX CSS imported in `app/layout.tsx`.
   Partial `$...$` during streaming renders as plain text until the closing
   delimiter arrives, so it never crashes mid-stream.
-- **Image attachments** (handwritten work / textbook photos). 📎 button in the
-  chat input → preview thumbnail → sends a base64 data URL. `app/api/chat/route.ts`
-  attaches it as a vision block (Anthropic `image` / OpenAI `image_url`). Works
-  with or without accompanying text. Max 5 MB; jpeg/png/gif/webp. Verified live:
-  gpt-5-mini correctly read a test image.
+- **Image attachments** (handwritten work / textbook photos), in BOTH the chat
+  tutor and the **FRQ grader**. 📎 button → preview thumbnail → sends a base64
+  data URL; the server attaches it as a vision block (Anthropic `image` / OpenAI
+  `image_url`) via the shared `lib/image.ts` + `lib/llm.ts`. Works with or without
+  accompanying text (FRQ accepts a typed answer, a photo, or both). Max 5 MB;
+  jpeg/png/gif/webp. Verified live end to end.
 
 ### Milestone 5 — Ship it
 > Do this only after Milestone 1 works on localhost (see "Order of operations" above).
