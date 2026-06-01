@@ -15,15 +15,29 @@
  *   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const VOYAGE_MODEL = "voyage-3.5";
 const EMBED_DIM = 1024;
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-);
+// Created lazily, not at module load. Instantiating at import time would crash
+// Next.js's build-time "collecting page data" phase (when env vars may be absent)
+// with "supabaseUrl is required". This also lets the tutor degrade gracefully:
+// if the env is missing at runtime, retrieval throws and the caller's try/catch
+// simply proceeds without RAG grounding.
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (_supabase) return _supabase;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) {
+    throw new Error(
+      "Supabase env not set (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).",
+    );
+  }
+  _supabase = createClient(url, key);
+  return _supabase;
+}
 
 export interface RetrievedChunk {
   id: number;
@@ -70,7 +84,7 @@ export async function retrieveContext(
 ): Promise<RetrievedChunk[]> {
   const queryEmbedding = await embedQuery(question);
 
-  const { data, error } = await supabase.rpc("match_documents", {
+  const { data, error } = await getSupabase().rpc("match_documents", {
     query_embedding: queryEmbedding,
     match_count: matchCount,
     filter: { course }, // pre-filter: physics tutor only sees physics chunks
