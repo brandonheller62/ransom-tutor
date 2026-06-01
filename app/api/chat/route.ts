@@ -4,17 +4,24 @@
  * The tutor backend (Milestone 1). For each turn it:
  *   1. pulls the relevant syllabus chunks from Supabase via retrieveContext(),
  *   2. builds the Socratic system prompt (lib/prompts.ts),
- *   3. streams Claude's reply back to the browser as plain UTF-8 text.
+ *   3. streams the model's reply back to the browser as plain UTF-8 text.
  *
- * Server-only. Uses ANTHROPIC_API_KEY (never shipped to the client).
+ * Server-only. Provider is chosen by which key is present:
+ *   - ANTHROPIC_API_KEY set  -> Claude (claude-opus-4-8), the preferred path.
+ *   - else OPENAI_API_KEY set -> GPT (gpt-5-mini), a temporary bridge.
+ * Pasting an Anthropic key later auto-switches back with no code change.
+ * Neither key is ever shipped to the client.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { classes, type CourseKey } from "@/lib/courses";
 import { retrieveContext } from "@/lib/retrieve";
 import { getSystemPrompt, type Difficulty, type Mode } from "@/lib/prompts";
 
 export const runtime = "nodejs";
+
+const OPENAI_MODEL = "gpt-5-mini";
 
 // The app's course keys differ from the labels stored in Supabase metadata
 // (ingest.ts used --course=physics / --course=data-science).
@@ -26,6 +33,19 @@ const RETRIEVAL_COURSE: Record<CourseKey, string> = {
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  image?: string; // data URL (base64) for an attached image on a user turn
+}
+
+const IMAGE_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
+type ImageMediaType = (typeof IMAGE_MEDIA_TYPES)[number];
+
+/** Split a `data:<media>;base64,<data>` URL into parts (or null if malformed/unsupported). */
+function parseDataUrl(dataUrl: string): { mediaType: ImageMediaType; data: string } | null {
+  const m = dataUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
+  if (!m) return null;
+  const mediaType = m[1] as ImageMediaType;
+  if (!IMAGE_MEDIA_TYPES.includes(mediaType)) return null;
+  return { mediaType, data: m[2] };
 }
 
 interface ChatRequest {
@@ -37,11 +57,17 @@ interface ChatRequest {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const provider = process.env.ANTHROPIC_API_KEY
+    ? "anthropic"
+    : process.env.OPENAI_API_KEY
+      ? "openai"
+      : null;
+
+  if (!provider) {
     return Response.json(
       {
         error:
-          "ANTHROPIC_API_KEY is not set. Add it to .env.local and restart the dev server.",
+          "No model key set. Add ANTHROPIC_API_KEY (preferred) or OPENAI_API_KEY to .env.local and restart the dev server.",
       },
       { status: 500 },
     );
@@ -90,27 +116,68 @@ export async function POST(req: Request) {
     context,
   });
 
-  const client = new Anthropic();
+  // Build provider-specific message arrays, attaching any image as a vision block.
+  const anthropicTurns: Anthropic.MessageParam[] = messages.map((m) => {
+    const img = m.role === "user" && m.image ? parseDataUrl(m.image) : null;
+    if (img) {
+      const blocks: Anthropic.ContentBlockParam[] = [];
+      if (m.content) blocks.push({ type: "text", text: m.content });
+      blocks.push({
+        type: "image",
+        source: { type: "base64", media_type: img.mediaType, data: img.data },
+      });
+      return { role: m.role, content: blocks };
+    }
+    return { role: m.role, content: m.content };
+  });
+
+  const openaiTurns: OpenAI.Chat.ChatCompletionMessageParam[] = messages.map((m) => {
+    if (m.role === "user" && m.image) {
+      const parts: OpenAI.Chat.ChatCompletionContentPart[] = [];
+      if (m.content) parts.push({ type: "text", text: m.content });
+      parts.push({ type: "image_url", image_url: { url: m.image } });
+      return { role: "user", content: parts };
+    }
+    return { role: m.role, content: m.content };
+  });
 
   const encoder = new TextEncoder();
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        const llm = client.messages.stream({
-          model: "claude-opus-4-8",
-          max_tokens: 4096,
-          thinking: { type: "adaptive" },
-          system,
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        });
-
-        llm.on("text", (delta) => controller.enqueue(encoder.encode(delta)));
-        await llm.finalMessage();
+        if (provider === "anthropic") {
+          const client = new Anthropic();
+          const llm = client.messages.stream({
+            model: "claude-opus-4-8",
+            max_tokens: 4096,
+            thinking: { type: "adaptive" },
+            system,
+            messages: anthropicTurns,
+          });
+          llm.on("text", (delta) => controller.enqueue(encoder.encode(delta)));
+          await llm.finalMessage();
+        } else {
+          const client = new OpenAI();
+          const llm = await client.chat.completions.create({
+            model: OPENAI_MODEL,
+            max_completion_tokens: 4096,
+            // gpt-5 is a reasoning model; keep effort low so streamed answer
+            // tokens aren't consumed by hidden reasoning.
+            reasoning_effort: "low",
+            stream: true,
+            messages: [{ role: "system", content: system }, ...openaiTurns],
+          });
+          for await (const chunk of llm) {
+            const delta = chunk.choices[0]?.delta?.content;
+            if (delta) controller.enqueue(encoder.encode(delta));
+          }
+        }
         controller.close();
       } catch (err) {
-        console.error("Anthropic stream error:", err);
+        console.error(`${provider} stream error:`, err);
         const msg =
-          err instanceof Anthropic.APIError
+          err instanceof Anthropic.APIError || err instanceof OpenAI.APIError
             ? `Tutor error (${err.status}): ${err.message}`
             : "The tutor hit an unexpected error. Check the server logs.";
         controller.enqueue(encoder.encode(`\n\n[${msg}]`));

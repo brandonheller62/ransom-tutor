@@ -6,9 +6,14 @@ Your single source of truth for "what's done" and "what's next." Updated 2026-05
 
 ## ✅ You are here
 
-You have a working **RAG pipeline** and a **Next.js app** with the tutor UI built.
-The app currently *looks* and *navigates* like the real thing, but the AI
-responses are not connected yet.
+**Milestones 1-4 are LIVE** on localhost: the chat tutor, the practice quizzes
+(MCQ/FRQ + grading), local progress tracking, and the polish pass (KaTeX math +
+image attachments) all work end to end. The model calls are currently driven by
+an **OpenAI key (`gpt-5-mini`)** as a temporary bridge, and auto-switch to
+`claude-opus-4-8` the moment an `ANTHROPIC_API_KEY` is added to `.env.local`
+(Anthropic is preferred when both keys are present) — no code change needed.
+
+The only milestone left is **Milestone 5 — Ship it** (deploy to Vercel).
 
 | Done | What |
 |------|------|
@@ -32,42 +37,78 @@ responses are not connected yet.
 > added or changed any time (a redeploy applies them), so nothing is locked in by
 > waiting.
 
-### Milestone 1 — Make the chat actually tutor ✅ BUILT (awaiting your key)
+### Milestone 1 — Make the chat actually tutor ✅ DONE (live on localhost)
 
-The chat tutor is wired end to end. Steps 2-4 below are **done**:
+The chat tutor is wired end to end and verified responding:
 
-2. ✅ SDK installed (`@anthropic-ai/sdk`).
-3. ✅ `app/api/chat/route.ts` — receives message + course + unit + mode + difficulty,
-   calls `retrieveContext()` for syllabus grounding, builds the prompt via
-   `lib/prompts.ts`, and streams `claude-opus-4-8` back.
-4. ✅ `app/page.tsx` — Send, Enter, hint buttons, "show answer" gate (2 hints),
-   "I solved it", "new problem", Reset, and Export all call the live tutor and
-   render the streamed reply.
+- ✅ Both SDKs installed (`@anthropic-ai/sdk`, `openai`).
+- ✅ `app/api/chat/route.ts` — receives message + course + unit + mode + difficulty,
+  calls `retrieveContext()` for syllabus grounding, builds the prompt via
+  `lib/prompts.ts`, and streams the reply. **Dual-provider:** Anthropic
+  (`claude-opus-4-8`) when `ANTHROPIC_API_KEY` is set, otherwise OpenAI
+  (`gpt-5-mini`).
+- ✅ `app/page.tsx` — Send, Enter, hint buttons, "show answer" gate (2 hints),
+  "I solved it", "new problem", Reset, and Export all call the live tutor and
+  render the streamed reply.
 
-**The one step left is yours:**
+**To swap to Claude later (preferred):** paste your key into the
+`ANTHROPIC_API_KEY=` line in `.env.local` and restart `npm run dev`. The route
+auto-prefers Anthropic; nothing else to change. Get the key from
+https://console.anthropic.com → API Keys.
 
-1. **Add your Anthropic API key** to `.env.local` (the `ANTHROPIC_API_KEY=` line is
-   already there, blank):
-   ```
-   ANTHROPIC_API_KEY=sk-ant-...
-   ```
-   (Get it from https://console.anthropic.com → API Keys.) Save, then restart the dev
-   server (`Ctrl+C`, then `npm run dev`). Open a unit → Chat Tutor and start talking.
+> ⚠️ Known quirk on the OpenAI bridge: `gpt-5-mini` occasionally emits an em dash
+> despite the "no em/en dashes" rule in `lib/prompts.ts`. Cosmetic only; goes away
+> on Claude. Revisit if it bothers you (could strip em dashes post-stream).
 
 ---
 
 ## 🔜 After that
 
-### Milestone 2 — Practice quizzes
-Wire the MCQ / FRQ "Start Practice" flow to the AI (port the quiz logic from the prototype).
+### Milestone 2 — Practice quizzes ✅ DONE (live on localhost)
+The MCQ / FRQ "Start Practice" flow is wired to the AI and verified end to end.
+- `app/api/quiz/route.ts` — non-streaming backend with three actions: `mcq`
+  (generates + parses into structured choices), `frq` (generates an AP-style
+  10-pt question), `grade` (per-part scoring + feedback). RAG-grounded via the
+  unit topic. Shares the dual-provider helper `lib/llm.ts`.
+- `lib/prompts.ts` — `getMcqPrompt` / `getFrqPrompt` / `getGradePrompt` (ported
+  from the prototype).
+- `app/page.tsx` — interactive MCQ cards (click to answer, color feedback,
+  explanation, Next), FRQ textarea → Submit for Grading → feedback → Next, and a
+  live score bar (correct/total for MCQ, completed count for FRQ).
+- Quiz CSS ported into `app/globals.css`.
 
-### Milestone 3 — Progress & login
-Decide where progress lives (browser `localStorage` vs. Supabase with student login),
-then restore streaks, weekly goals, and mastery scores (currently showing 0).
+> Note: `lib/llm.ts` sets `reasoning_effort: "low"` on the OpenAI (`gpt-5-mini`)
+> path. Without it the reasoning model intermittently returned EMPTY completions
+> (the hidden reasoning consumed the whole token budget). Keep this in mind if you
+> ever see blank quiz/tutor output on the OpenAI bridge.
 
-### Milestone 4 — Polish
-- KaTeX math rendering in tutor replies
-- Image attachments (handwritten work)
+### Milestone 3 — Progress ✅ DONE (local to the device)
+Decision: progress lives in the **browser's `localStorage`** (no login / no
+Supabase) — simplest for a single shared device. Implemented in `lib/progress.ts`
+(types, mastery/streak/week math, load/save) and wired through `app/page.tsx`:
+- **Per-unit mastery rings** on the class screen (was hardcoded 0).
+- **Streak**, **weekly-goal** (editable via a modal), and **all-time problems**
+  in the home stats bar.
+- **Session recap modal** when you leave a unit you practiced in (time, problems,
+  solved, hints, mastery delta).
+- Progress is fed by BOTH the chat tutor ("I solved it" = solved, each hint =
+  small penalty) AND the quizzes (each MCQ/FRQ counts; MCQ-correct = solved).
+
+> Storage key: `socratic_progress_v1` in localStorage. Clearing browser data
+> resets all progress. It does not sync across devices/browsers (by design).
+
+### Milestone 4 — Polish ✅ DONE
+- **KaTeX math rendering** everywhere (chat replies, MCQ/FRQ questions, choices,
+  explanations, grading). `app/Markdown.tsx` wraps `react-markdown` +
+  `remark-math` + `rehype-katex` (+ `remark-breaks`), with the em/en-dash
+  stripper ported from the prototype. KaTeX CSS imported in `app/layout.tsx`.
+  Partial `$...$` during streaming renders as plain text until the closing
+  delimiter arrives, so it never crashes mid-stream.
+- **Image attachments** (handwritten work / textbook photos). 📎 button in the
+  chat input → preview thumbnail → sends a base64 data URL. `app/api/chat/route.ts`
+  attaches it as a vision block (Anthropic `image` / OpenAI `image_url`). Works
+  with or without accompanying text. Max 5 MB; jpeg/png/gif/webp. Verified live:
+  gpt-5-mini correctly read a test image.
 
 ### Milestone 5 — Ship it
 > Do this only after Milestone 1 works on localhost (see "Order of operations" above).
