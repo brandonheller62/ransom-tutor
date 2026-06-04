@@ -423,8 +423,12 @@ export default function Home() {
     void callTutor(history);
   }
 
-  // Validate + read a chosen image file into a base64 data URL, then hand it to
-  // the given setter. Shared by the chat tutor and the FRQ grader.
+  // Validate, downscale, and read a chosen image file into a base64 data URL,
+  // then hand it to the given setter. Shared by the chat tutor and the FRQ
+  // grader. Phone photos are large (often 3-8 MB); raw base64 inflates them by
+  // ~33% and blows past Vercel's 4.5 MB request-body limit (HTTP 413). We
+  // re-encode to a JPEG capped at 1568px (Claude's vision sweet spot), which
+  // keeps payloads small while preserving enough detail for handwritten work.
   function readImageFile(
     e: React.ChangeEvent<HTMLInputElement>,
     set: (url: string) => void,
@@ -436,15 +440,36 @@ export default function Home() {
       showToast("Please choose an image file.");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Image is too large (max 5 MB).");
+    if (file.size > 25 * 1024 * 1024) {
+      showToast("Image is too large (max 25 MB).");
       return;
     }
+
     const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") set(reader.result);
-    };
     reader.onerror = () => showToast("Could not read that image.");
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      const original = reader.result;
+      const img = new Image();
+      img.onerror = () => showToast("Could not read that image.");
+      img.onload = () => {
+        const MAX = 1568;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          set(original); // canvas unsupported; fall back to the raw image
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        set(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = original;
+    };
     reader.readAsDataURL(file);
   }
 
