@@ -361,49 +361,6 @@ header {
   .stats-bar { gap: 1.25rem; }
 }
 
-/* ===== Narrow phones (≤480px): declutter the chat ===== */
-@media (max-width: 480px) {
-  /* Tighten the card's horizontal padding so bubbles get more room. */
-  .mode-controls { padding: 0.6rem 0.85rem; }
-  .messages { padding: 1.25rem 0.85rem; }
-  .starter-prompts { padding: 0.6rem 0.85rem 0.25rem; }
-  .hint-controls { padding: 0.6rem 0.85rem 0.5rem; }
-  .input-area { padding: 0.5rem 0.85rem 1rem; }
-  .attach-preview { margin: 0 0.85rem 0.5rem; }
-
-  /* Stack the MODE / DIFFICULTY control groups vertically, label above its
-     buttons, so nothing wraps mid-word beside the label. */
-  .mode-controls { flex-direction: column; align-items: stretch; gap: 0.75rem; }
-  .mode-group { flex-wrap: wrap; width: 100%; gap: 0.4rem; }
-  .control-label { flex-basis: 100%; margin-right: 0; margin-bottom: 0.15rem; }
-  /* Each button shares its row equally and never breaks across lines. */
-  .mode-group .mode-btn,
-  .mode-group .diff-btn {
-    flex: 1; white-space: nowrap; min-height: 44px;
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-  .chat-header-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
-  .reset-btn { min-height: 44px; display: inline-flex; align-items: center; }
-
-  /* The chat scroll area must shrink, not impose a height that truncates the
-     greeting; min-height:0 lets flexbox size it correctly without a cap. */
-  .messages { min-height: 0; max-height: none; }
-
-  /* Give the welcome bubble (and every message) its full natural height,
-     full opacity, and a stacking context above the chips below it. */
-  .message { max-width: 92%; position: relative; z-index: 1; opacity: 1; max-height: none; height: auto; overflow: visible; }
-
-  /* Suggestion chips: tighter vertical gaps, 44px tap targets, sit below. */
-  .starter-prompts { gap: 0.4rem; position: relative; z-index: 0; }
-  .starter-chip {
-    min-height: 44px; display: inline-flex; align-items: center;
-    padding: 0.45rem 0.9rem;
-  }
-
-  /* Keep hint buttons tappable too. */
-  .hint-btn { min-height: 44px; display: inline-flex; align-items: center; }
-}
-
 /* ===== Progress: goal edit, modals, recap (ported from prototype) ===== */
 .goal-edit-btn { background: transparent; border: none; color: var(--text-muted); font-size: 0.75rem; cursor: pointer; font-family: inherit; padding: 0.2rem 0.4rem; border-radius: 4px; }
 .goal-edit-btn:hover { color: var(--accent); background: var(--surface-2); }
