@@ -26,7 +26,8 @@ the course syllabi via RAG (retrieval-augmented generation).
 
 ## Current status
 
-Milestone 1 is **done and live on localhost**: the chat tutor streams end to end
+**All five milestones are DONE and live in production** at
+https://ransomtutor.vercel.app. Milestone 1 (the chat tutor) streams end to end
 (`app/api/chat/route.ts` builds the prompt via `lib/prompts.ts` + `lib/retrieve.ts`,
 and `app/page.tsx` renders the stream). The route is **dual-provider** — it uses
 Anthropic (`claude-opus-4-8`) when `ANTHROPIC_API_KEY` is set, otherwise falls back to
@@ -41,8 +42,22 @@ for progress. Milestone 4 (polish) is **done**: KaTeX math rendering via
 `app/Markdown.tsx` (react-markdown + remark-math + rehype-katex; KaTeX CSS in
 `app/layout.tsx`) and image attachments (📎 → base64 data URL → vision block) in BOTH the chat tutor
 (`app/api/chat/route.ts`) and the FRQ grader (`app/api/quiz/route.ts` via `lib/llm.ts`),
-sharing `lib/image.ts` (`parseDataUrl`). Only Milestone 5 (deploy to Vercel) remains. See
-`docs/ROADMAP.md` for the authoritative status.
+sharing `lib/image.ts` (`parseDataUrl`). Milestone 5 (ship it) is **DONE — live and RAG-
+verified in production** at https://ransomtutor.vercel.app (project `socratic-tutor`,
+auto-deploys from `main`). All required env vars are set in Vercel (Production) and
+retrieval is confirmed working as of 2026-06-02 (runtime logs clean, no
+`retrieveContext failed`). See `docs/ROADMAP.md` for the authoritative status.
+
+NB (deploy gotchas, all fixed): (1) `lib/retrieve.ts` creates the Supabase client lazily
+— creating it at module load broke the Vercel build's "collecting page data" phase. (2)
+Vercel BLOCKS deploys whose git commit author email isn't the Vercel account email (use
+`brandonheller62@gmail.com`, not the Apple private-relay address). (3) **`NEXT_PUBLIC_*`
+env vars are inlined at BUILD time, not read at runtime** — this silently broke live RAG:
+the Supabase vars were set in Vercel but the live deployment was a redeploy of a build
+that predated them, so `NEXT_PUBLIC_SUPABASE_URL` was baked in as `undefined` and
+`retrieveContext` threw `Supabase env not set` (swallowed by the route → HTTP 200, no
+grounding). After adding/changing any `NEXT_PUBLIC_*` var, force a FRESH build (new commit
+or Redeploy with build cache unchecked); a plain redeploy of an old build won't pick it up.
 
 NB: `lib/llm.ts` sets `reasoning_effort: "low"` on the OpenAI path — `gpt-5-mini` is a
 reasoning model and otherwise intermittently returns empty completions (hidden reasoning
@@ -87,14 +102,15 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
 and behavior **blueprint** for the Next.js port. When building features (chat modes, MCQ/FRQ
 quizzes, mastery/progress), port the corresponding logic from this file.
 
-Prototype behaviors still to port: `getSystemPrompt()` (4 modes — Socratic Tutor, Solution
-Checker, MCQ Practice, FRQ Practice), the MCQ/FRQ quiz flows, and the localStorage progress
-engine (streaks, weekly goals, `computeMastery()`).
+All of the prototype's behaviors have now been ported: the tutor modes (`lib/prompts.ts`),
+the MCQ/FRQ quiz flows (`app/api/quiz/route.ts` + the quiz UI), the localStorage progress
+engine (`lib/progress.ts`), KaTeX rendering (`app/Markdown.tsx`), and image attachments. The
+prototype remains useful as a design/behavior reference.
 
 ## Key conventions (carry into the tutor)
 
 - **No em/en dashes** in AI responses — the prototype's system prompt bans them.
-- **LaTeX math**: inline `$...$`, display `$$...$$` (KaTeX rendering still to be added).
+- **LaTeX math**: inline `$...$`, display `$$...$$` (rendered via `app/Markdown.tsx`).
 - **Hint gate**: "Show me the answer" stays disabled until the student uses 2 hints.
 - **AI policy tiers**: both syllabi use Red/Yellow/Green; include in General Questions context.
 

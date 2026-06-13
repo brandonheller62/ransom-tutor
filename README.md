@@ -6,7 +6,12 @@ and **Applied Data Science** — built for the AI Innovation Fellowship.
 The tutor leads students through problems with hints instead of handing over answers,
 grounded in the actual course syllabi via retrieval-augmented generation (RAG).
 
-> **What's next?** See **[docs/ROADMAP.md](docs/ROADMAP.md)** for the clear, step-by-step plan.
+**Status: all five milestones are built, deployed, and verified in production at
+[ransomtutor.vercel.app](https://ransomtutor.vercel.app).** The chat tutor, practice
+quizzes (MCQ/FRQ + grading), local progress tracking, KaTeX math, image attachments, and
+RAG syllabus grounding on the live site all work end to end.
+
+> **Details / history:** see **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 
 ---
 
@@ -21,8 +26,9 @@ npm run dev
 ```
 Then open **http://localhost:3000**. To stop the server, press **Ctrl + C** in the terminal.
 
-> Current status: the UI is fully built and navigable, but the AI responses
-> aren't connected yet — that's Milestone 1 in the roadmap.
+> The app needs a model key + the RAG keys in `.env.local` to respond (see **Secrets**
+> below). It uses Anthropic (`claude-opus-4-8`) when `ANTHROPIC_API_KEY` is set, otherwise
+> falls back to OpenAI (`gpt-5-mini`).
 
 ---
 
@@ -30,13 +36,22 @@ Then open **http://localhost:3000**. To stop the server, press **Ctrl + C** in t
 
 ```
 AI_Innovation_Fellowship/
-├── app/                  # Next.js app (UI + future API routes)
-│   ├── page.tsx          #   the tutor UI (Home → Class → Unit)
-│   ├── layout.tsx        #   page shell + metadata
-│   └── globals.css       #   the design system (ported from the prototype)
+├── app/                  # Next.js app (UI + API routes)
+│   ├── page.tsx          #   the tutor UI (Home → Class → Unit), chat + quizzes + progress
+│   ├── Markdown.tsx      #   renders replies as Markdown + KaTeX math
+│   ├── layout.tsx        #   page shell + metadata (+ KaTeX CSS)
+│   ├── globals.css       #   the design system (ported from the prototype)
+│   └── api/              #   server routes
+│       ├── chat/route.ts #     streaming Socratic tutor (vision-capable)
+│       └── quiz/route.ts #     MCQ / FRQ generation + grading
 ├── lib/                  # shared app code
 │   ├── retrieve.ts       #   RAG retrieval (embeds a query, calls match_documents)
-│   └── courses.ts        #   course + unit data (titles, syllabi, starter prompts)
+│   ├── llm.ts            #   dual-provider (Anthropic/OpenAI) completion helper
+│   ├── prompts.ts        #   Socratic + quiz system prompts
+│   ├── progress.ts       #   local-only progress engine (localStorage)
+│   ├── image.ts          #   shared image (data URL) parsing for vision
+│   ├── courses.ts        #   course + unit data (titles, syllabi, starter prompts)
+│   └── utils.ts          #   small shared helpers (clsx + tailwind-merge)
 ├── scripts/              # standalone command-line tools (run with tsx)
 │   ├── ingest.ts         #   ingest a PDF into Supabase (extract → chunk → embed)
 │   └── retrieve-test.ts  #   manual test of retrieval
@@ -75,11 +90,31 @@ npm run ingest -- "./course-materials/Advanced-Physics-Mechanics-Syllabus-2025-2
    (a `documents` table with a `vector(1024)` column).
 2. **Retrieve** (at question time): `lib/retrieve.ts` embeds the student's question and
    asks Supabase's `match_documents` for the most relevant chunks.
-3. **Tutor** (Milestone 1, not built yet): an API route will feed those chunks +
-   a Socratic system prompt to the **Anthropic API** and stream the reply into the chat.
+3. **Tutor**: `app/api/chat/route.ts` feeds those chunks + a Socratic system prompt to the
+   model and streams the reply into the chat. `app/api/quiz/route.ts` generates and grades
+   practice questions. The model is **Anthropic `claude-opus-4-8`** when `ANTHROPIC_API_KEY`
+   is set, otherwise **OpenAI `gpt-5-mini`** — chosen automatically per request.
+
+## Deployment
+
+Live at **[ransomtutor.vercel.app](https://ransomtutor.vercel.app)** on **Vercel**,
+auto-deploying from the `main` branch of
+[github.com/brandonheller62/ransom-tutor](https://github.com/brandonheller62/ransom-tutor).
+The same keys below must be added under **Vercel → Settings → Environment Variables**
+(the live app needs `OPENAI_API_KEY`, `VOYAGE_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; the two `SUPABASE_*` server keys are ingest-only
+and not required there).
+
+Two deploy gotchas to remember:
+- Vercel blocks deploys whose git commit author email isn't your Vercel account email
+  (use `brandonheller62@gmail.com`).
+- **`NEXT_PUBLIC_*` vars are inlined at build time.** After adding or changing one, you
+  must trigger a **fresh build** (new commit, or Redeploy with "Use existing Build Cache"
+  unchecked) — a plain redeploy of an older build keeps the stale value. This is what
+  briefly broke live RAG until a clean rebuild re-inlined `NEXT_PUBLIC_SUPABASE_URL`.
 
 ## Secrets
 
 All keys live in `.env.local` (gitignored). The split matters:
-- `SUPABASE_SECRET_KEY` / `ANTHROPIC_API_KEY` / `VOYAGE_API_KEY` — **server-only**, never sent to the browser.
+- `SUPABASE_SECRET_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `VOYAGE_API_KEY` — **server-only**, never sent to the browser.
 - `NEXT_PUBLIC_*` keys — safe for the browser (Row Level Security still protects the data).

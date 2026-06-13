@@ -1,19 +1,24 @@
 # Socratic Tutor — Roadmap
 
-Your single source of truth for "what's done" and "what's next." Updated 2026-05-29.
+Your single source of truth for "what's done" and "what's next." Updated 2026-06-02.
 
 ---
 
 ## ✅ You are here
 
-**Milestones 1-4 are LIVE** on localhost: the chat tutor, the practice quizzes
-(MCQ/FRQ + grading), local progress tracking, and the polish pass (KaTeX math +
-image attachments) all work end to end. The model calls are currently driven by
-an **OpenAI key (`gpt-5-mini`)** as a temporary bridge, and auto-switch to
-`claude-opus-4-8` the moment an `ANTHROPIC_API_KEY` is added to `.env.local`
-(Anthropic is preferred when both keys are present) — no code change needed.
+**All five milestones are LIVE and verified in production** at
+**https://ransomtutor.vercel.app**: the chat tutor, the practice quizzes
+(MCQ/FRQ + grading), local progress tracking, the polish pass (KaTeX math +
+image attachments), and — as of 2026-06-02 — **RAG grounding on the live site**.
+The model calls are currently driven by an **OpenAI key (`gpt-5-mini`)** as a
+temporary bridge, and auto-switch to `claude-opus-4-8` the moment an
+`ANTHROPIC_API_KEY` is added (Anthropic is preferred when both keys are present)
+— no code change needed.
 
-The only milestone left is **Milestone 5 — Ship it** (deploy to Vercel).
+**Milestone 5 — Ship it is DONE.** The app is deployed to **Vercel**,
+auto-deploying from `main`, with all required env vars set in Production and
+retrieval confirmed working (no more `retrieveContext failed` in the runtime
+logs).
 
 | Done | What |
 |------|------|
@@ -27,17 +32,19 @@ The only milestone left is **Milestone 5 — Ship it** (deploy to Vercel).
 
 ---
 
-## 👉 NEXT STEP (start here)
+## 👉 WHERE THINGS STAND
 
-> **Order of operations (important):** Don't deploy to Vercel yet. The right
-> sequence is **(1) get an Anthropic API key → (2) build Milestone 1 → (3) confirm
-> the tutor works on localhost → (4) THEN deploy.** The Anthropic key gates the
-> real work, not the deploy. Deploying earlier would just publish a non-working
-> preview (the code stays safe on GitHub regardless). Note: Vercel env vars can be
-> added or changed any time (a redeploy applies them), so nothing is locked in by
-> waiting.
+All five milestones are built, deployed, and verified in production (Milestone 5
+includes RAG grounding, confirmed live 2026-06-02). The model currently runs on
+the **OpenAI `gpt-5-mini`** bridge; to switch to Claude, add `ANTHROPIC_API_KEY`
+to `.env.local` (local) and to Vercel's env vars (production) — the app
+auto-prefers Anthropic.
 
-### Milestone 1 — Make the chat actually tutor ✅ DONE (live on localhost)
+Remaining odds and ends:
+- (Optional) Get an Anthropic key to move off the temporary OpenAI bridge. After
+  adding it to Vercel, trigger a fresh build (see the build-time env gotcha below).
+
+### Milestone 1 — Make the chat actually tutor ✅ DONE (live in production)
 
 The chat tutor is wired end to end and verified responding:
 
@@ -62,9 +69,9 @@ https://console.anthropic.com → API Keys.
 
 ---
 
-## 🔜 After that
+## ✅ The rest (all built)
 
-### Milestone 2 — Practice quizzes ✅ DONE (live on localhost)
+### Milestone 2 — Practice quizzes ✅ DONE (live in production)
 The MCQ / FRQ "Start Practice" flow is wired to the AI and verified end to end.
 - `app/api/quiz/route.ts` — non-streaming backend with three actions: `mcq`
   (generates + parses into structured choices), `frq` (generates an AP-style
@@ -111,14 +118,55 @@ Supabase) — simplest for a single shared device. Implemented in `lib/progress.
   accompanying text (FRQ accepts a typed answer, a photo, or both). Max 5 MB;
   jpeg/png/gif/webp. Verified live end to end.
 
-### Milestone 5 — Ship it
-> Do this only after Milestone 1 works on localhost (see "Order of operations" above).
-1. ~~`git init` + push this folder to **GitHub**~~ ✅ done — https://github.com/brandonheller62-dot/socratic-tutor (private).
-2. Import the repo into **Vercel** (Add New → Project → import `socratic-tutor`).
-3. In Vercel → Project Settings → Environment Variables, add the same keys from
-   `.env.local` (VOYAGE_API_KEY, SUPABASE_URL, SUPABASE_SECRET_KEY,
-   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, ANTHROPIC_API_KEY).
-4. Deploy → you get a live URL.
+### Milestone 5 — Ship it ✅ DONE (live + RAG verified in production)
+1. ~~`git init` + push to **GitHub**~~ ✅ done — https://github.com/brandonheller62/ransom-tutor (private).
+2. ~~Import the repo into **Vercel**~~ ✅ done — project `socratic-tutor` under the
+   "Brandon's projects" team, auto-deploying from `main`.
+3. ~~**Environment Variables:**~~ ✅ done — set in Vercel → Settings → Environment
+   Variables, scoped to **Production**:
+   - **Required (all set):** `OPENAI_API_KEY`, `VOYAGE_API_KEY`,
+     `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+   - **Skip:** `SUPABASE_URL` + `SUPABASE_SECRET_KEY` (ingest-only, not used by the live
+     app). `ANTHROPIC_API_KEY` — add later to switch to Claude.
+4. ~~Confirm RAG works on the live site.~~ ✅ verified 2026-06-02 — runtime logs are
+   clean (no `retrieveContext failed`), tutor answers are syllabus-grounded.
+
+**Gotchas hit during deploy (fixed):**
+- `lib/retrieve.ts` created the Supabase client at module load → the build crashed in
+  the "collecting page data" phase (`supabaseUrl is required`). Fixed: the client is now
+  created lazily inside `retrieveContext`.
+- Vercel marked deploys **BLOCKED** (no build) because the git commit **author email**
+  was an Apple private-relay address, not the Vercel account email. Fixed by setting
+  `git config user.email brandonheller62@gmail.com` and re-authoring the commit.
+- **`NEXT_PUBLIC_*` env vars are inlined at BUILD time, not read at runtime.** This is
+  what silently broke RAG in production: the Supabase vars were added in Vercel, but the
+  live deployment was a **redeploy of an older build** that ran before the vars existed,
+  so `NEXT_PUBLIC_SUPABASE_URL` was baked in as `undefined` and `retrieveContext` threw
+  `Supabase env not set` (swallowed by the route's try/catch → HTTP 200 with no
+  grounding). Fix: after adding/changing any `NEXT_PUBLIC_*` var, trigger a **fresh
+  build** — push a new commit, or use Redeploy with **"Use existing Build Cache"
+  unchecked**. A plain redeploy of an old build will NOT pick up the new value.
+- If the live site shows a Vercel login wall, turn off **Settings → Deployment
+  Protection → Vercel Authentication** so students can reach it.
+
+---
+
+## 🔮 Future milestones (not started — do later)
+
+Ideas captured for a future round of work. None are started yet.
+
+- [ ] **Real problems from the class** — pull in the actual problems used in
+      class as exemplars, then have the tutor/quizzes generate *new* questions
+      modeled on those (same style and difficulty). Don't just serve the class
+      problems verbatim — use them to calibrate the type and difficulty of the
+      AI-generated practice.
+- [ ] **Other advanced physics teacher's syllabus** — get that teacher's
+      syllabus and ingest it as RAG course material. (Remember: ingestion is
+      insert-only — to replace, delete old rows first; see Housekeeping below.)
+- [ ] **Add more classes** — expand beyond Physics / Data Science. Add the new
+      course to `lib/courses.ts` and mind the app-key vs. Supabase-label
+      mismatch (`datascience` vs. `data-science`) handled in `app/api/chat/route.ts`.
+- [ ] **Add mobile UI**
 
 ---
 
