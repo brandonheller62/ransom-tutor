@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# private course materials (syllabi, quizzes, etc.) — keep local only
+/course-materials/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
