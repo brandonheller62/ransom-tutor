@@ -11,7 +11,12 @@ grounded in the actual course syllabi via retrieval-augmented generation (RAG).
 quizzes (MCQ/FRQ + grading), local progress tracking, KaTeX math, image attachments, and
 RAG syllabus grounding on the live site all work end to end.
 
-> **Details / history:** see **[docs/ROADMAP.md](docs/ROADMAP.md)**.
+<img width="1366" height="896" alt="image" src="https://github.com/user-attachments/assets/6bb56307-dabb-4a9f-b3bb-214500f604c0" />
+
+<img width="1195" height="1008" alt="image" src="https://github.com/user-attachments/assets/0cc9670f-02a7-4fa5-8c6b-08bbe0494d19" />
+
+<img width="1213" height="980" alt="image" src="https://github.com/user-attachments/assets/9194ba93-da7a-47b5-a68a-bbb9d2fdccd9" />
+
 
 ---
 
