@@ -105,18 +105,6 @@ npm run ingest -- "./course-materials/Advanced-Physics-Mechanics-Syllabus-2025-2
 Live at **[ransomtutor.vercel.app](https://ransomtutor.vercel.app)** on **Vercel**,
 auto-deploying from the `main` branch of
 [github.com/brandonheller62/ransom-tutor](https://github.com/brandonheller62/ransom-tutor).
-The same keys below must be added under **Vercel → Settings → Environment Variables**
-(the live app needs `OPENAI_API_KEY`, `VOYAGE_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; the two `SUPABASE_*` server keys are ingest-only
-and not required there).
-
-Two deploy gotchas to remember:
-- Vercel blocks deploys whose git commit author email isn't your Vercel account email
-  (use `brandonheller62@gmail.com`).
-- **`NEXT_PUBLIC_*` vars are inlined at build time.** After adding or changing one, you
-  must trigger a **fresh build** (new commit, or Redeploy with "Use existing Build Cache"
-  unchecked) — a plain redeploy of an older build keeps the stale value. This is what
-  briefly broke live RAG until a clean rebuild re-inlined `NEXT_PUBLIC_SUPABASE_URL`.
 
 ## Secrets
 
