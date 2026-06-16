@@ -98,16 +98,10 @@ npm run ingest -- "./course-materials/Advanced-Physics-Mechanics-Syllabus-2025-2
 3. **Tutor**: `app/api/chat/route.ts` feeds those chunks + a Socratic system prompt to the
    model and streams the reply into the chat. `app/api/quiz/route.ts` generates and grades
    practice questions. The model is **Anthropic `claude-opus-4-8`** when `ANTHROPIC_API_KEY`
-   is set, otherwise **OpenAI `gpt-5-mini`** — chosen automatically per request.
+   is set, otherwise **OpenAI `gpt-4o-mini`** — chosen automatically per request.
 
 ## Deployment
 
 Live at **[ransomtutor.vercel.app](https://ransomtutor.vercel.app)** on **Vercel**,
 auto-deploying from the `main` branch of
 [github.com/brandonheller62/ransom-tutor](https://github.com/brandonheller62/ransom-tutor).
-
-## Secrets
-
-All keys live in `.env.local` (gitignored). The split matters:
-- `SUPABASE_SECRET_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `VOYAGE_API_KEY` — **server-only**, never sent to the browser.
-- `NEXT_PUBLIC_*` keys — safe for the browser (Row Level Security still protects the data).
