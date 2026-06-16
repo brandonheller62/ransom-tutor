@@ -33,7 +33,7 @@ Then open **http://localhost:3000**. To stop the server, press **Ctrl + C** in t
 
 > The app needs a model key + the RAG keys in `.env.local` to respond (see **Secrets**
 > below). It uses Anthropic (`claude-opus-4-8`) when `ANTHROPIC_API_KEY` is set, otherwise
-> falls back to OpenAI (`gpt-5-mini`).
+> falls back to OpenAI (`gpt-4o-mini`).
 
 ---
 
