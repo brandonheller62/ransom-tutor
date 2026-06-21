@@ -74,16 +74,6 @@ header {
 
 .logo { font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 0.6rem; transition: opacity 0.15s; }
 .logo:hover { opacity: 0.8; }
-.logo-mark {
-  width: 38px; height: 34px; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(140deg, var(--accent-soft) 0%, #ffffff 100%);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-  font-family: 'Times New Roman', Georgia, serif; font-size: 1.4rem; font-weight: 700; line-height: 1; letter-spacing: -0.06em;
-}
-.logo-mark .r-letter { color: var(--accent); }
-.logo-mark .e-letter { color: var(--mint); }
 
 .breadcrumbs { font-size: 0.875rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem; }
 .breadcrumbs a { color: var(--text-muted); text-decoration: none; cursor: pointer; transition: color 0.15s; }
