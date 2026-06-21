@@ -167,6 +167,7 @@ Ideas captured for a future round of work. None are started yet.
       course to `lib/courses.ts` and mind the app-key vs. Supabase-label
       mismatch (`datascience` vs. `data-science`) handled in `app/api/chat/route.ts`.
 - [ ] **Add mobile UI**
+- [ ] **Allow users to copy/paste photos in and take pictures of their work and drop it into the chat**
 
 ---
 
