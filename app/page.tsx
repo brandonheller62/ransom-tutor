@@ -631,10 +631,6 @@ export default function Home() {
       <header>
         <div className="header-inner">
           <div className="logo" onClick={goHome}>
-            <div className="logo-mark">
-              <span className="r-letter">R</span>
-              <span className="e-letter">E</span>
-            </div>
             <span>Socratic Tutor</span>
           </div>
           <div className="breadcrumbs">
