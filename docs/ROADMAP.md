@@ -166,6 +166,19 @@ Ideas captured for a future round of work. None are started yet.
 - [ ] **Add more classes** — expand beyond Physics / Data Science. Add the new
       course to `lib/courses.ts` and mind the app-key vs. Supabase-label
       mismatch (`datascience` vs. `data-science`) handled in `app/api/chat/route.ts`.
+- [ ] **"Teach the Tutor" mode (learn-by-teaching)** — a new chat mode that
+      flips the roles: the *student* is the teacher and the chatbot plays a
+      curious student. The bot asks clarifying questions, surfaces
+      misconceptions, requests worked examples, and probes "why" — leveraging
+      the protégé effect (you learn a topic best by teaching it). Add it
+      alongside the existing tutor/checker/general modes in `lib/prompts.ts`
+      (a new `getSystemPrompt` mode that instructs the model to role-play a
+      student at a chosen level and ask questions rather than give answers),
+      wire a mode toggle into `app/page.tsx`, and pass the new `mode` through
+      `app/api/chat/route.ts`. Ideas: let the student pick the "student's"
+      level (novice → skeptical peer), have the bot occasionally state a
+      plausible wrong idea for the teacher to correct, and end with the bot
+      "summarizing what it learned" so the student can check their explanation.
 - [ ] **Add mobile UI**
 - [ ] **Allow users to copy/paste photos in and take pictures of their work and drop it into the chat**
 
