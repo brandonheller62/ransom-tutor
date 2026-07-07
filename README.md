@@ -1,7 +1,7 @@
 # Socratic AI Tutor
 
-A guided, Socratic AI tutor for two Ransom Everglades courses — **Advanced Physics: Mechanics**
-and **Applied Data Science** — built for the AI Innovation Fellowship.
+A guided, Socratic AI tutor for two Ransom Everglades courses, **Advanced Physics: Mechanics**
+and **Applied Data Science**, built for the AI Innovation Fellowship.
 
 The tutor leads students through problems with hints instead of handing over answers,
 grounded in the actual course syllabi via retrieval-augmented generation (RAG).
