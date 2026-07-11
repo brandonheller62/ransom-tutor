@@ -191,14 +191,13 @@ Ideas captured for a future round of work. None are started yet.
       just taught") when `mode === "teach"`. Options: a parallel
       `teachStarterPromptsByUnit` map, or a small transform of the existing
       prompts; hide/relabel the "Pick a starter prompt" helper line accordingly.
-- [ ] **"Thinking" animation while the tutor responds** — today `callTutor`
-      (`app/page.tsx` ~L360) pushes an empty assistant bubble and fills it as
-      tokens stream, so there's a dead, blank bubble during the gap before the
-      first token. Show an animated typing indicator (e.g. three bouncing dots)
-      in the assistant bubble while `isStreaming` and the accumulated text is
-      still empty, then swap to the streamed text on first token. Add a
-      `.typing-indicator` (keyframes) to `app/globals.css`. Consider the same
-      treatment for the FRQ "Grading..." wait.
+- [x] **"Thinking" animation while the tutor responds** — DONE. The assistant
+      bubble now shows an animated three-dot typing indicator while `isStreaming`
+      and the accumulated text is still empty, then swaps to the streamed text on
+      the first token (`app/page.tsx`). Reused the already-defined-but-unused
+      `.typing-dots` / `@keyframes typingBounce` styles in `app/globals.css`
+      (the JSX previously rendered a static "…"). Verified live in the browser.
+      (Follow-up idea: give the FRQ "Grading..." wait the same treatment.)
 - [ ] **Pre-generate quiz questions to cut wait time** — right now
       `fetchQuestion` sets `quizPhase = "loading"` and the student stares at
       "Generating your question..." on every question (`app/page.tsx` ~L544,

@@ -938,8 +938,14 @@ export default function Home() {
                     {m.role === "assistant" ? (
                       m.content ? (
                         <Markdown className="md">{m.content}</Markdown>
+                      ) : isStreaming && i === messages.length - 1 ? (
+                        <div className="typing-dots" aria-label="Tutor is thinking">
+                          <span></span>
+                          <span></span>
+                          <span></span>
+                        </div>
                       ) : (
-                        <p>{isStreaming && i === messages.length - 1 ? "…" : ""}</p>
+                        <p></p>
                       )
                     ) : (
                       <>
