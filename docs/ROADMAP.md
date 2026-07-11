@@ -166,6 +166,10 @@ Ideas captured for a future round of work. None are started yet.
 - [ ] **Add more classes** — expand beyond Physics / Data Science. Add the new
       course to `lib/courses.ts` and mind the app-key vs. Supabase-label
       mismatch (`datascience` vs. `data-science`) handled in `app/api/chat/route.ts`.
+      Candidate classes to consider adding:
+  - [ ] **Marine Field Research**
+  - [ ] **Literary Theory**
+  - [ ] **Quantitative Finance and AI**
 - [x] **"Teach the Tutor" mode (learn-by-teaching)** — DONE. A role-flipped chat
       mode: the *student* teaches and the chatbot plays a curious student
       (protégé effect). Added `"teach"` to `Mode` in `lib/prompts.ts` with a
