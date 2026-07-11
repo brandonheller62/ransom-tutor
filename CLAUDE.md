@@ -75,7 +75,9 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   Supabase metadata labels (`physics` / `data-science`), not the app's `CourseKey`
   (`physics` / `datascience`) — `app/api/chat/route.ts` maps between them.
 - `lib/prompts.ts` — `getSystemPrompt({course, unit, mode, difficulty, context})`;
-  ported from the prototype's `getSystemPrompt()` (tutor / checker / general modes).
+  ported from the prototype's `getSystemPrompt()` (tutor / checker / general modes), plus
+  a `teach` mode (learn-by-teaching: the model role-plays a curious student and the user
+  teaches it; the Difficulty control sets the student persona via `TEACH_PERSONA`).
 - `app/api/chat/route.ts` — the tutor backend: retrieves context, builds the prompt,
   streams the reply (Claude `claude-opus-4-8` adaptive thinking, or OpenAI `gpt-5-mini`)
   back as plain text.

@@ -166,21 +166,19 @@ Ideas captured for a future round of work. None are started yet.
 - [ ] **Add more classes** — expand beyond Physics / Data Science. Add the new
       course to `lib/courses.ts` and mind the app-key vs. Supabase-label
       mismatch (`datascience` vs. `data-science`) handled in `app/api/chat/route.ts`.
-- [ ] **"Teach the Tutor" mode (learn-by-teaching)** — a new chat mode that
-      flips the roles: the *student* is the teacher and the chatbot plays a
-      curious student. The bot asks clarifying questions, surfaces
-      misconceptions, requests worked examples, and probes "why" — leveraging
-      the protégé effect (you learn a topic best by teaching it). Add it
-      alongside the existing tutor/checker/general modes in `lib/prompts.ts`
-      (a new `getSystemPrompt` mode that instructs the model to role-play a
-      student at a chosen level and ask questions rather than give answers),
-      wire a mode toggle into `app/page.tsx`, and pass the new `mode` through
-      `app/api/chat/route.ts`. Ideas: let the student pick the "student's"
-      level (novice → skeptical peer), have the bot occasionally state a
-      plausible wrong idea for the teacher to correct, and end with the bot
-      "summarizing what it learned" so the student can check their explanation.
+- [x] **"Teach the Tutor" mode (learn-by-teaching)** — DONE. A role-flipped chat
+      mode: the *student* teaches and the chatbot plays a curious student
+      (protégé effect). Added `"teach"` to `Mode` in `lib/prompts.ts` with a
+      `getSystemPrompt` branch that role-plays a student — it asks clarifying
+      questions, requests worked examples, probes "why", occasionally voices a
+      plausible wrong idea for the teacher to correct, and summarizes "what I
+      learned" so the teacher can check. The existing Difficulty control doubles
+      as the student's sophistication (`TEACH_PERSONA`: warmup = novice →
+      challenge = skeptical peer). A "Teach the Tutor" mode button is wired into
+      `app/page.tsx` (mode-aware intro bubble + export labels); `mode` flows
+      through `app/api/chat/route.ts` unchanged. Verified end to end on the
+      Anthropic (`claude-opus-4-8`) path.
 - [ ] **Add mobile UI**
-- [ ] **Allow users to copy/paste photos in and take pictures of their work and drop it into the chat**
 
 ---
 

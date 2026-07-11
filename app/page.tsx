@@ -43,7 +43,7 @@ const cardVariants = {
 };
 
 type View = "home" | "class" | "unit";
-type Mode = "tutor" | "checker";
+type Mode = "tutor" | "checker" | "teach";
 type Difficulty = "warmup" | "standard" | "challenge";
 type UnitView = "chat" | "practice";
 type PracticeMode = "mcq" | "frq";
@@ -510,10 +510,14 @@ export default function Home() {
       return;
     }
     let md = `# ${course.title} — ${currentUnit.title}\n\n`;
-    md += `**Mode:** ${mode === "tutor" ? "Socratic Tutor" : "Solution Checker"}  \n`;
+    const modeLabel =
+      mode === "tutor" ? "Socratic Tutor" : mode === "checker" ? "Solution Checker" : "Teach the Tutor";
+    md += `**Mode:** ${modeLabel}  \n`;
     md += `**Difficulty:** ${difficulty}\n\n---\n\n`;
+    const youLabel = mode === "teach" ? "You (teaching)" : "You";
+    const botLabel = mode === "teach" ? "Student" : "Tutor";
     for (const m of messages) {
-      md += `**${m.role === "user" ? "You" : "Tutor"}:** ${m.content}\n\n`;
+      md += `**${m.role === "user" ? youLabel : botLabel}:** ${m.content}\n\n`;
     }
     const blob = new Blob([md], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
@@ -873,6 +877,12 @@ export default function Home() {
                   >
                     Solution Checker
                   </button>
+                  <button
+                    className={"mode-btn" + (mode === "teach" ? " active" : "")}
+                    onClick={() => setMode("teach")}
+                  >
+                    Teach the Tutor
+                  </button>
                 </div>
                 <div className="mode-group">
                   <span className="control-label">Difficulty:</span>
@@ -898,12 +908,26 @@ export default function Home() {
 
               <div className="messages">
                 <div className="message tutor">
-                  <p>
-                    Hi! I&apos;m your Socratic tutor for{" "}
-                    <strong>{currentUnit.title}</strong>. I&apos;ll guide you
-                    through problems with hints instead of handing over answers.
-                  </p>
-                  <p>Pick a starter prompt below or type a question to begin.</p>
+                  {mode === "teach" ? (
+                    <>
+                      <p>
+                        Your turn to teach! I&apos;m a curious student learning{" "}
+                        <strong>{currentUnit.title}</strong>. Explain a concept and
+                        I&apos;ll ask questions, poke at the fuzzy parts, and
+                        (sometimes) get it a little wrong so you can set me straight.
+                      </p>
+                      <p>Start by explaining something, then I&apos;ll dig in.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        Hi! I&apos;m your Socratic tutor for{" "}
+                        <strong>{currentUnit.title}</strong>. I&apos;ll guide you
+                        through problems with hints instead of handing over answers.
+                      </p>
+                      <p>Pick a starter prompt below or type a question to begin.</p>
+                    </>
+                  )}
                 </div>
 
                 {messages.map((m, i) => (

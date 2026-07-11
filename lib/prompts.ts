@@ -2,10 +2,12 @@
  * lib/prompts.ts
  *
  * The tutor's system prompt, ported from the HTML prototype's getSystemPrompt().
- * Three modes:
+ * Four modes:
  *   - "tutor"   : Socratic guidance (never hands over the answer unasked)
  *   - "checker" : Solution Checker (critiques the student's attempt)
  *   - "general" : course-info assistant grounded in the syllabus (not Socratic)
+ *   - "teach"   : role-flipped (learn-by-teaching) — the model plays a curious
+ *                 student and the real student teaches it (the protege effect)
  *
  * Conventions carried from the prototype (see CLAUDE.md "Key conventions"):
  *   - No em/en dashes.
@@ -17,7 +19,7 @@
 
 import type { Course, Unit } from "./courses";
 
-export type Mode = "tutor" | "checker" | "general";
+export type Mode = "tutor" | "checker" | "general" | "teach";
 export type Difficulty = "warmup" | "standard" | "challenge";
 
 // Short difficulty hints used by the quiz generators (ported from the prototype).
@@ -109,6 +111,17 @@ const DIFFICULTY_DESCRIPTIONS: Record<Difficulty, string> = {
     "CHALLENGE level: Demanding problems combining multiple concepts, requiring careful setup or non-obvious approaches.",
 };
 
+// Persona for "teach" mode: the difficulty control sets how sophisticated (and
+// how skeptical) the model's student character is.
+const TEACH_PERSONA: Record<Difficulty, string> = {
+  warmup:
+    "Play a NOVICE student seeing this for the first time. Ask basic, foundational questions and admit when a term is new to you. Need things broken down into small steps.",
+  standard:
+    "Play a TYPICAL student who knows the basics but has real gaps. Ask solid follow-up questions and occasionally mix up related ideas.",
+  challenge:
+    "Play a SHARP, SKEPTICAL peer. Push on edge cases, ask for justification, and don't accept hand-waving. Occasionally propose a subtly wrong idea to test whether your teacher can catch it.",
+};
+
 export interface BuildPromptArgs {
   course: Course;
   unit: Unit | null; // null only for "general" mode
@@ -162,6 +175,35 @@ export function getSystemPrompt({
       `- End with a clear summary: is the answer correct? If not, what is the corrected approach?\n\n` +
       `Tone: Constructive and specific. Treat errors as learning opportunities.\n\n` +
       `Difficulty preference for any new problems: ${diff}\n\n` +
+      `Unit context: This unit covers "${unitTitle}". ${unitDesc}` +
+      FORMATTING_RULES +
+      grounding
+    );
+  }
+
+  if (mode === "teach") {
+    // Reuse the difficulty control as the "student" persona's sophistication:
+    // a harder setting makes the model a sharper, more skeptical learner.
+    const persona = TEACH_PERSONA[difficulty];
+    return (
+      `You are role-playing as a STUDENT of ${course.title}, learning the unit "${unitTitle}". ` +
+      `The person you are talking to is your TEACHER, and their goal is to learn this material by teaching it to you. ` +
+      `This is the protege effect: they learn best by explaining. Your job is to be a great student, NOT to teach them.\n\n` +
+      `${persona}\n\n` +
+      `How to behave:\n` +
+      `- Be curious, earnest, and engaged. Ask ONE or TWO questions at a time, not a wall of them.\n` +
+      `- When your teacher explains something, react to it: say what made sense and what is still fuzzy.\n` +
+      `- Probe "why": ask them to justify a step, define a term, or connect it to something else.\n` +
+      `- Ask for a concrete worked example or a diagram when an explanation stays abstract.\n` +
+      `- Surface misconceptions honestly. Occasionally voice a PLAUSIBLE WRONG idea ("wait, so is it that...?") ` +
+      `so your teacher has to catch and correct it. Do not do this every turn, and never present it as fact.\n` +
+      `- Do NOT lecture, do NOT give the answer, and do NOT quietly correct yourself. Let your teacher do the correcting.\n` +
+      `- If your teacher is clearly right, confirm your understanding by restating it in your own words.\n` +
+      `- Every few turns, or when a topic wraps up, summarize "what I learned so far" in 1-2 sentences ` +
+      `so your teacher can check whether their explanation actually landed.\n` +
+      `- Keep each message short. You are a student in conversation, not writing an essay.\n\n` +
+      `If your teacher attaches an image (their notes, a diagram, worked steps), study it and ask about the parts you don't follow.\n\n` +
+      `Tone: friendly, a little eager, genuinely trying to understand.\n\n` +
       `Unit context: This unit covers "${unitTitle}". ${unitDesc}` +
       FORMATTING_RULES +
       grounding

@@ -8,8 +8,9 @@ grounded in the actual course syllabi via retrieval-augmented generation (RAG).
 
 **Status: all five milestones are built, deployed, and verified in production at
 [ransomtutor.vercel.app](https://ransomtutor.vercel.app).** The chat tutor, practice
-quizzes (MCQ/FRQ + grading), local progress tracking, KaTeX math, image attachments, and
-RAG syllabus grounding on the live site all work end to end.
+quizzes (MCQ/FRQ + grading), local progress tracking, KaTeX math, image attachments, a
+learn-by-teaching "Teach the Tutor" mode, and RAG syllabus grounding on the live site all
+work end to end.
 
 <img width="1366" height="896" alt="image" src="https://github.com/user-attachments/assets/6bb56307-dabb-4a9f-b3bb-214500f604c0" />
 
@@ -96,9 +97,12 @@ npm run ingest -- "./course-materials/Advanced-Physics-Mechanics-Syllabus-2025-2
 2. **Retrieve** (at question time): `lib/retrieve.ts` embeds the student's question and
    asks Supabase's `match_documents` for the most relevant chunks.
 3. **Tutor**: `app/api/chat/route.ts` feeds those chunks + a Socratic system prompt to the
-   model and streams the reply into the chat. `app/api/quiz/route.ts` generates and grades
-   practice questions. The model is **Anthropic `claude-opus-4-8`** when `ANTHROPIC_API_KEY`
-   is set, otherwise **OpenAI `gpt-4o-mini`** — chosen automatically per request.
+   model and streams the reply into the chat. The chat supports four modes: **Socratic
+   Tutor**, **Solution Checker**, and a role-flipped **Teach the Tutor** mode (you teach a
+   curious AI student, leveraging the protégé effect), plus a general course-info mode.
+   `app/api/quiz/route.ts` generates and grades practice questions. The model is
+   **Anthropic `claude-opus-4-8`** when `ANTHROPIC_API_KEY` is set, otherwise **OpenAI
+   `gpt-5-mini`** — chosen automatically per request.
 
 ## Deployment
 
