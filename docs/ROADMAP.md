@@ -178,7 +178,38 @@ Ideas captured for a future round of work. None are started yet.
       `app/page.tsx` (mode-aware intro bubble + export labels); `mode` flows
       through `app/api/chat/route.ts` unchanged. Verified end to end on the
       Anthropic (`claude-opus-4-8`) path.
-- [ ] **Add mobile UI**
+- [ ] **Mode-aware starter prompts for "Teach the Tutor"** — the suggested-input
+      chips are currently student-phrased questions ("Help me with...") keyed by
+      unit in `starterPromptsByUnit` (`lib/courses.ts`), rendered unconditionally
+      in the chat view (`app/page.tsx` ~L961, `.starter-prompts`). In `teach`
+      mode they read wrong. Swap them for teacher-phrased openers (e.g. "Let me
+      explain [concept] to you", "I'll walk you through...", "Quiz me on what I
+      just taught") when `mode === "teach"`. Options: a parallel
+      `teachStarterPromptsByUnit` map, or a small transform of the existing
+      prompts; hide/relabel the "Pick a starter prompt" helper line accordingly.
+- [ ] **"Thinking" animation while the tutor responds** — today `callTutor`
+      (`app/page.tsx` ~L360) pushes an empty assistant bubble and fills it as
+      tokens stream, so there's a dead, blank bubble during the gap before the
+      first token. Show an animated typing indicator (e.g. three bouncing dots)
+      in the assistant bubble while `isStreaming` and the accumulated text is
+      still empty, then swap to the streamed text on first token. Add a
+      `.typing-indicator` (keyframes) to `app/globals.css`. Consider the same
+      treatment for the FRQ "Grading..." wait.
+- [ ] **Pre-generate quiz questions to cut wait time** — right now
+      `fetchQuestion` sets `quizPhase = "loading"` and the student stares at
+      "Generating your question..." on every question (`app/page.tsx` ~L544,
+      ~L1121). Prefetch the NEXT question in the background while the student
+      works the current one: keep a small buffer keyed by
+      (unit, practiceMode, difficulty), fill it right after a question is shown,
+      and serve instantly from the buffer on "Next" (falling back to a live
+      fetch on a miss / after a settings change). Invalidate the buffer when the
+      unit, practice mode, or difficulty changes so stale questions aren't served.
+- [ ] **Fix mobile UI** — the app is desktop-first and cramps on phones. Audit
+      `app/globals.css` for fixed widths / non-wrapping rows: the mode + difficulty
+      control bar (`.mode-controls` / `.mode-group`), the course/unit card grids,
+      the chat message column and starter-prompt chips, and the quiz layout. Add
+      responsive breakpoints (stack the control bar, single-column cards, full-width
+      chat, tap-friendly buttons) and verify at ~375px and ~768px widths.
 
 ---
 
