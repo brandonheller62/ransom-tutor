@@ -20,8 +20,10 @@ the course syllabi via RAG (retrieval-augmented generation).
 - **Supabase** — `documents` table with `embedding vector(1024)`, `match_documents()`
   similarity function, HNSW index, RLS (public read, secret-key write).
 - **Voyage AI** — `voyage-3.5` embeddings, 1024 dimensions.
-- **Tutor LLM** — dual-provider in `app/api/chat/route.ts`: Anthropic `claude-opus-4-8`
+- **Tutor LLM** — dual-provider in `app/api/chat/route.ts`: Anthropic `claude-sonnet-5`
   (preferred) or OpenAI `gpt-5-mini` (fallback), chosen by which API key is present.
+  Note the model split: the **chat tutor** runs on `claude-sonnet-5` (fast + cheap),
+  while the **quiz backend** (`lib/llm.ts`) keeps `claude-opus-4-8` for FRQ grading.
 - `package.json` has `"type": "module"` (required for the standalone tsx scripts).
 
 ## Current status
@@ -30,7 +32,7 @@ the course syllabi via RAG (retrieval-augmented generation).
 https://ransomtutor.vercel.app. Milestone 1 (the chat tutor) streams end to end
 (`app/api/chat/route.ts` builds the prompt via `lib/prompts.ts` + `lib/retrieve.ts`,
 and `app/page.tsx` renders the stream). The route is **dual-provider** — it uses
-Anthropic (`claude-opus-4-8`) when `ANTHROPIC_API_KEY` is set, otherwise falls back to
+Anthropic (`claude-sonnet-5`) when `ANTHROPIC_API_KEY` is set, otherwise falls back to
 OpenAI (`gpt-5-mini`) via `OPENAI_API_KEY`. Currently running on the OpenAI bridge until
 the Anthropic key is added (Anthropic is preferred when both are present). Milestone 2
 (practice quizzes) is also **done**: `app/api/quiz/route.ts` (MCQ/FRQ/grade) +
@@ -79,10 +81,12 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   a `teach` mode (learn-by-teaching: the model role-plays a curious student and the user
   teaches it; the Difficulty control sets the student persona via `TEACH_PERSONA`).
 - `app/api/chat/route.ts` — the tutor backend: retrieves context, builds the prompt,
-  streams the reply (Claude `claude-opus-4-8` adaptive thinking, or OpenAI `gpt-5-mini`)
+  streams the reply (Claude `claude-sonnet-5` adaptive thinking, or OpenAI `gpt-5-mini`)
   back as plain text.
 - `lib/llm.ts` — dual-provider, non-streaming `complete()` helper used by the quiz
-  backend (Anthropic preferred, OpenAI fallback; `reasoning_effort: "low"` on gpt-5).
+  backend (Anthropic `claude-opus-4-8` preferred, OpenAI fallback; `reasoning_effort:
+  "low"` on gpt-5). Kept on Opus 4.8 (not Sonnet 5) because FRQ grading is the most
+  judgment-heavy call in the app.
 - `app/api/quiz/route.ts` — practice-quiz backend (Milestone 2): `mcq` (generate +
   `parseMcq` into structured choices), `frq` (generate), `grade` (score a response).
   RAG-grounded by unit topic.

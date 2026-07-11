@@ -10,10 +10,11 @@ Your single source of truth for "what's done" and "what's next." Updated 2026-06
 **https://ransomtutor.vercel.app**: the chat tutor, the practice quizzes
 (MCQ/FRQ + grading), local progress tracking, the polish pass (KaTeX math +
 image attachments), and — as of 2026-06-02 — **RAG grounding on the live site**.
-The model calls are currently driven by an **OpenAI key (`gpt-5-mini`)** as a
-temporary bridge, and auto-switch to `claude-opus-4-8` the moment an
-`ANTHROPIC_API_KEY` is added (Anthropic is preferred when both keys are present)
-— no code change needed.
+The model calls now run on **Anthropic** (`ANTHROPIC_API_KEY` is set in prod): the
+chat tutor uses **`claude-sonnet-5`** (fast + cost-efficient) and quiz generation +
+FRQ grading use **`claude-opus-4-8`** (`lib/llm.ts`). If the Anthropic key is ever
+removed, both paths fall back to the **OpenAI bridge (`gpt-5-mini`)** with no code
+change.
 
 **Milestone 5 — Ship it is DONE.** The app is deployed to **Vercel**,
 auto-deploying from `main`, with all required env vars set in Production and
@@ -52,7 +53,7 @@ The chat tutor is wired end to end and verified responding:
 - ✅ `app/api/chat/route.ts` — receives message + course + unit + mode + difficulty,
   calls `retrieveContext()` for syllabus grounding, builds the prompt via
   `lib/prompts.ts`, and streams the reply. **Dual-provider:** Anthropic
-  (`claude-opus-4-8`) when `ANTHROPIC_API_KEY` is set, otherwise OpenAI
+  (`claude-sonnet-5`) when `ANTHROPIC_API_KEY` is set, otherwise OpenAI
   (`gpt-5-mini`).
 - ✅ `app/page.tsx` — Send, Enter, hint buttons, "show answer" gate (2 hints),
   "I solved it", "new problem", Reset, and Export all call the live tutor and
@@ -181,7 +182,7 @@ Ideas captured for a future round of work. None are started yet.
       challenge = skeptical peer). A "Teach the Tutor" mode button is wired into
       `app/page.tsx` (mode-aware intro bubble + export labels); `mode` flows
       through `app/api/chat/route.ts` unchanged. Verified end to end on the
-      Anthropic (`claude-opus-4-8`) path.
+      Anthropic chat path (now `claude-sonnet-5`).
 - [ ] **Mode-aware starter prompts for "Teach the Tutor"** — the suggested-input
       chips are currently student-phrased questions ("Help me with...") keyed by
       unit in `starterPromptsByUnit` (`lib/courses.ts`), rendered unconditionally
