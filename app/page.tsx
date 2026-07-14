@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Markdown } from "./Markdown";
 import {
   classes,
-  starterPromptsByUnit,
+  getStarterPrompts,
   type CourseKey,
   type Unit,
 } from "@/lib/courses";
@@ -358,6 +358,14 @@ export default function Home() {
     setHintsUsed(0);
     setIsStreaming(false);
     setPendingImage(null);
+  }
+
+  // Switching chat modes clears the conversation: a Socratic hint trail makes
+  // no sense once you jump into Solution Checker or role-reverse into Teach.
+  function handleModeChange(newMode: Mode) {
+    if (newMode === mode) return;
+    setMode(newMode);
+    resetChat();
   }
 
   const course = currentClass ? classes[currentClass] : null;
@@ -873,19 +881,19 @@ export default function Home() {
                   <span className="control-label">Mode:</span>
                   <button
                     className={"mode-btn" + (mode === "tutor" ? " active" : "")}
-                    onClick={() => setMode("tutor")}
+                    onClick={() => handleModeChange("tutor")}
                   >
                     Socratic Tutor
                   </button>
                   <button
                     className={"mode-btn" + (mode === "checker" ? " active" : "")}
-                    onClick={() => setMode("checker")}
+                    onClick={() => handleModeChange("checker")}
                   >
                     Solution Checker
                   </button>
                   <button
                     className={"mode-btn" + (mode === "teach" ? " active" : "")}
-                    onClick={() => setMode("teach")}
+                    onClick={() => handleModeChange("teach")}
                   >
                     Teach the Tutor
                   </button>
@@ -971,7 +979,7 @@ export default function Home() {
 
               {messages.length === 0 && (
                 <div className="starter-prompts">
-                  {(starterPromptsByUnit[currentUnit.id] ?? []).map((p) => (
+                  {getStarterPrompts(mode, currentUnit).map((p) => (
                     <button
                       key={p}
                       className="starter-chip"

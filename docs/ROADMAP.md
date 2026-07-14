@@ -183,15 +183,14 @@ Ideas captured for a future round of work. None are started yet.
       `app/page.tsx` (mode-aware intro bubble + export labels); `mode` flows
       through `app/api/chat/route.ts` unchanged. Verified end to end on the
       Anthropic chat path (now `claude-sonnet-5`).
-- [ ] **Mode-aware starter prompts for "Teach the Tutor"** — the suggested-input
-      chips are currently student-phrased questions ("Help me with...") keyed by
-      unit in `starterPromptsByUnit` (`lib/courses.ts`), rendered unconditionally
-      in the chat view (`app/page.tsx` ~L961, `.starter-prompts`). In `teach`
-      mode they read wrong. Swap them for teacher-phrased openers (e.g. "Let me
-      explain [concept] to you", "I'll walk you through...", "Quiz me on what I
-      just taught") when `mode === "teach"`. Options: a parallel
-      `teachStarterPromptsByUnit` map, or a small transform of the existing
-      prompts; hide/relabel the "Pick a starter prompt" helper line accordingly.
+- [x] **Mode-aware starter prompts** — DONE (extended to Solution Checker too).
+      `getStarterPrompts(mode, unit)` in `lib/courses.ts` returns the chips for
+      the chat view: tutor mode keeps the hand-written per-unit questions in
+      `starterPromptsByUnit`; checker and teach modes get four mode-generic
+      openers spliced with the unit topic (the data-science "Unit N:" title
+      prefix is stripped for splicing). Rendered via `app/page.tsx`
+      (`.starter-prompts`); chips refresh on mode switch because changing modes
+      clears the chat (`handleModeChange`), which re-shows the starter row.
 - [x] **"Thinking" animation while the tutor responds** — DONE. The assistant
       bubble now shows an animated three-dot typing indicator while `isStreaming`
       and the accumulated text is still empty, then swaps to the streamed text on

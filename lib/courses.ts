@@ -7,6 +7,8 @@
  * content in Supabase).
  */
 
+import type { Mode } from "./prompts";
+
 export interface Unit {
   id: string;
   title: string;
@@ -86,3 +88,36 @@ export const starterPromptsByUnit: Record<string, string[]> = {
   d8: ["Give me Kaggle competition strategy tips", "Practice with feature engineering", "How do I avoid leakage?", "Explain ensemble methods"],
   d9: ["Help me scope my final project", "How do I present data findings?", "Practice with project planning", "What makes a good capstone?"],
 };
+
+/** Unit title without the data-science "Unit N:" prefix, for splicing into sentences. */
+function unitTopic(unit: Unit): string {
+  return unit.title.replace(/^Unit \d+:\s*/, "");
+}
+
+/**
+ * Starter chips for the chat view. Tutor mode keeps the hand-written per-unit
+ * questions in `starterPromptsByUnit`; checker and teach get mode-generic
+ * openers spliced with the unit topic, because student-phrased "Give me a
+ * problem" chips read wrong when the student is submitting work to be checked
+ * or playing the teacher.
+ */
+export function getStarterPrompts(mode: Mode, unit: Unit): string[] {
+  const topic = unitTopic(unit);
+  if (mode === "checker") {
+    return [
+      `Can you check my solution to a ${topic} problem?`,
+      "I'll paste my work, tell me if each step is right",
+      "I got a different answer than expected, help me find my mistake",
+      `What mistakes are most common in ${topic}?`,
+    ];
+  }
+  if (mode === "teach") {
+    return [
+      `Let me explain ${topic} to you`,
+      `I'll walk you through solving a ${topic} problem`,
+      `Ask me a question about ${topic} and I'll answer as your teacher`,
+      `I'll teach you the trickiest part of ${topic}`,
+    ];
+  }
+  return starterPromptsByUnit[unit.id] ?? [];
+}
