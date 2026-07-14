@@ -19,6 +19,13 @@ import { classes, type CourseKey } from "@/lib/courses";
 import { retrieveContext } from "@/lib/retrieve";
 import { getSystemPrompt, type Difficulty, type Mode } from "@/lib/prompts";
 import { parseDataUrl } from "@/lib/image";
+import {
+  describeLlmError,
+  sleep,
+  GENERIC_LLM_MESSAGE,
+  LLM_BACKOFF_MS,
+  OVERLOADED_LLM_MESSAGE,
+} from "@/lib/llm";
 
 export const runtime = "nodejs";
 
@@ -138,43 +145,61 @@ export async function POST(req: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      try {
-        if (provider === "anthropic") {
-          const client = new Anthropic();
-          const llm = client.messages.stream({
-            model: ANTHROPIC_MODEL,
-            max_tokens: 4096,
-            thinking: { type: "adaptive" },
-            system,
-            messages: anthropicTurns,
-          });
-          llm.on("text", (delta) => controller.enqueue(encoder.encode(delta)));
-          await llm.finalMessage();
-        } else {
-          const client = new OpenAI();
-          const llm = await client.chat.completions.create({
-            model: OPENAI_MODEL,
-            max_completion_tokens: 4096,
-            // gpt-5 is a reasoning model; keep effort low so streamed answer
-            // tokens aren't consumed by hidden reasoning.
-            reasoning_effort: "low",
-            stream: true,
-            messages: [{ role: "system", content: system }, ...openaiTurns],
-          });
-          for await (const chunk of llm) {
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) controller.enqueue(encoder.encode(delta));
+      // A failed attempt may only be retried while the reply is still empty;
+      // once tokens have reached the browser a retry would duplicate them.
+      let emitted = false;
+      const emit = (text: string) => {
+        emitted = true;
+        controller.enqueue(encoder.encode(text));
+      };
+
+      for (let attempt = 0; ; attempt++) {
+        try {
+          if (provider === "anthropic") {
+            // maxRetries: 0 — this loop owns retries (it must stop once text
+            // has streamed); the SDK's built-in ones would stack on top.
+            const client = new Anthropic({ maxRetries: 0 });
+            const llm = client.messages.stream({
+              model: ANTHROPIC_MODEL,
+              max_tokens: 4096,
+              thinking: { type: "adaptive" },
+              system,
+              messages: anthropicTurns,
+            });
+            llm.on("text", emit);
+            await llm.finalMessage();
+          } else {
+            const client = new OpenAI({ maxRetries: 0 });
+            const llm = await client.chat.completions.create({
+              model: OPENAI_MODEL,
+              max_completion_tokens: 4096,
+              // gpt-5 is a reasoning model; keep effort low so streamed answer
+              // tokens aren't consumed by hidden reasoning.
+              reasoning_effort: "low",
+              stream: true,
+              messages: [{ role: "system", content: system }, ...openaiTurns],
+            });
+            for await (const chunk of llm) {
+              const delta = chunk.choices[0]?.delta?.content;
+              if (delta) emit(delta);
+            }
           }
+          controller.close();
+          return;
+        } catch (err) {
+          const info = describeLlmError(err);
+          console.error(`${provider} stream error (attempt ${attempt + 1}, ${info.detail}):`, err);
+          if (!emitted && info.retryable && attempt < LLM_BACKOFF_MS.length) {
+            await sleep(LLM_BACKOFF_MS[attempt]);
+            continue;
+          }
+          // Students were seeing raw mid-stream 529 bodies here; ship the
+          // friendly copy instead and keep the detail in the server log.
+          const msg = info.retryable ? OVERLOADED_LLM_MESSAGE : GENERIC_LLM_MESSAGE;
+          controller.enqueue(encoder.encode(emitted ? `\n\n${msg}` : msg));
+          controller.close();
+          return;
         }
-        controller.close();
-      } catch (err) {
-        console.error(`${provider} stream error:`, err);
-        const msg =
-          err instanceof Anthropic.APIError || err instanceof OpenAI.APIError
-            ? `Tutor error (${err.status}): ${err.message}`
-            : "The tutor hit an unexpected error. Check the server logs.";
-        controller.enqueue(encoder.encode(`\n\n[${msg}]`));
-        controller.close();
       }
     },
   });
