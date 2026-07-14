@@ -295,6 +295,12 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // useState navigation (no router) keeps the scroll position, so without this a
+  // tap on a card lands the next view mid-page.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view, unitView]);
+
   function goHome() {
     endSession(true);
     setView("home");
@@ -1051,7 +1057,7 @@ export default function Home() {
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your answer, or attach a photo of your work..."
+                  placeholder="Type your answer..."
                   rows={1}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {

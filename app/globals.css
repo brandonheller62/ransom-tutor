@@ -150,7 +150,8 @@ header {
 .chat-container {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
   box-shadow: var(--shadow); display: flex; flex-direction: column;
-  height: calc(100vh - 230px); min-height: 520px; overflow: hidden;
+  height: calc(100vh - 230px); height: calc(100dvh - 230px); /* dvh: mobile Safari's URL bar shrinks the visible viewport */
+  min-height: 520px; overflow: hidden;
 }
 
 /* Export/Reset live inline at the right end of the controls toolbar. */
@@ -163,7 +164,7 @@ header {
 .mode-controls { padding: 0.5rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
 .mode-group { display: flex; align-items: center; gap: 0.4rem; }
 .control-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); font-weight: 700; margin-right: 0.25rem; }
-.mode-btn, .diff-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 0.32rem 0.75rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.18s; }
+.mode-btn, .diff-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 0.32rem 0.75rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.18s; white-space: nowrap; flex-shrink: 0; }
 .mode-btn:hover, .diff-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .mode-btn.active, .diff-btn.active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: var(--shadow-sm); }
 
@@ -348,17 +349,56 @@ header {
 
 @media (max-width: 640px) {
   .container { padding: 1rem 1rem 3rem; }
-  header { margin: -1rem -1rem 1.75rem; padding: 0.9rem 1rem; }
+  /* Mobile Safari ignores fixed background-attachment and repaints the gradient on scroll. */
+  body { background-attachment: scroll; }
+
+  /* Header: one compact row; breadcrumbs truncate instead of wrapping to a 2nd line.
+     Opaque-r background because content scrolling under a 0.78-alpha bar reads as bleed-through. */
+  header { margin: -1rem -1rem 1.25rem; padding: 0.65rem 1rem; background: rgba(247, 251, 249, 0.95); }
+  .header-inner { flex-wrap: nowrap; min-width: 0; }
+  .logo { flex-shrink: 0; }
+  .logo > span { display: none; } /* logo mark alone; breadcrumbs carry the location */
+  .breadcrumbs { font-size: 0.8rem; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
+  .breadcrumbs a, .breadcrumbs span { white-space: nowrap; }
+  .breadcrumbs a:not(:first-child), .breadcrumbs span:not(.sep) { overflow: hidden; text-overflow: ellipsis; }
+
   .hero { padding: 1.5rem 0 2.25rem; }
+
+  /* Stats bar: stacked stats don't need the vertical desktop dividers. */
+  .stats-bar { gap: 1rem; }
+  .stat-divider { display: none; }
+
+  /* Unit header: back button + tabs fit on one row at 390px; the stacked
+     version wastes ~50px that the chat below badly needs. */
+  .unit-view-header { flex-wrap: nowrap; gap: 0.5rem; margin-bottom: 0.85rem; }
+  .unit-tab { padding: 0.45rem 0.8rem; font-size: 0.82rem; }
+
+  /* Chat: every control strip becomes a single horizontally-scrollable row so the
+     conversation, not the chrome, gets the screen. */
+  .chat-container { height: calc(100vh - 210px); height: calc(100dvh - 210px); min-height: 420px; }
+  .mode-controls { padding: 0.5rem 1rem; gap: 0.4rem 1rem; }
+  .control-label { display: none; }
+  .mode-group { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  .mode-group::-webkit-scrollbar { display: none; }
+  .messages { padding: 1.1rem 1rem; }
   .message { max-width: 90%; }
-  .chat-container { height: calc(100vh - 190px); }
-  .header-inner { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-  .breadcrumbs { font-size: 0.8rem; flex-wrap: wrap; }
-  .unit-view-header { flex-direction: column; align-items: flex-start; }
-  .quiz-topbar { flex-direction: column; align-items: flex-start; }
+  .starter-prompts, .hint-controls {
+    padding-left: 1rem; padding-right: 1rem;
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .starter-prompts::-webkit-scrollbar, .hint-controls::-webkit-scrollbar { display: none; }
+  .starter-chip, .hint-btn { flex-shrink: 0; white-space: nowrap; }
+  .input-area { padding: 0.5rem 1rem 0.9rem; gap: 0.5rem; }
+  .send-btn { padding: 0 1.1rem; }
+
+  /* 16px floor: iOS Safari auto-zooms the page when focusing any smaller text field. */
+  .input-area textarea, .quiz-frq-textarea, .goal-input { font-size: 16px; }
+
+  .quiz-topbar { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
   .quiz-score-area { margin-left: 0; }
   .quiz-score-track { width: 90px; }
-  .stats-bar { gap: 1.25rem; }
+  .quiz-card { padding: 1.4rem 1.1rem; }
+  .quiz-start-card { padding: 2.75rem 1.25rem; }
 }
 
 /* ===== Progress: goal edit, modals, recap (ported from prototype) ===== */
