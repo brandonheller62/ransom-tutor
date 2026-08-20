@@ -31,7 +31,9 @@ const QUIZ_DIFFICULTY: Record<Difficulty, string> = {
 
 const QUIZ_FORMATTING =
   "\n\nFORMATTING: Use LaTeX for ALL math ($...$ for inline, $$...$$ for display). " +
-  "Never use em dashes or en dashes. Always include units.";
+  "Never use em dashes or en dashes. Always include units. " +
+  "Currency is NOT math: write dollar amounts with a backslash-escaped dollar sign " +
+  "(\\$100, \\$1{,}250) or as words, never inside math delimiters unless part of an equation.";
 
 function quizGrounding(context?: string): string {
   return context?.trim()
@@ -98,6 +100,7 @@ const FORMATTING_RULES = `
 FORMATTING RULES:
 - Never use em dashes or en dashes. Use commas, periods, parentheses, or colons instead.
 - Use LaTeX for ALL math. Wrap inline math in single dollar signs (example: $v = v_0 + at$). Wrap display math in double dollar signs (example: $$F = ma$$).
+- Currency is NOT math. Write dollar amounts with a backslash-escaped dollar sign (\\$100, \\$1{,}250) or as words ("100 dollars"). Never put a dollar amount inside math delimiters unless it is part of an equation.
 - Use markdown for emphasis with double asterisks for bold and single asterisks for italic.
 - For physics, always include units. Format units in math with backslash text, like $9.8 \\text{ m/s}^2$.
 - Keep responses concise. The student should be doing most of the thinking.`;

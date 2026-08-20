@@ -12,7 +12,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Socratic AI Tutor",
   description:
-    "A guided, Socratic tutor for Advanced Physics: Mechanics and Applied Data Science.",
+    "A guided, Socratic tutor for Ransom Everglades courses: Advanced Physics, Applied Data Science, Quantitative Finance & AI, Digital Narrative, and Advanced Machine Learning.",
 };
 
 export default function RootLayout({

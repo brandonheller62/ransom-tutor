@@ -22,6 +22,32 @@ function stripDashes(text: string): string {
   return text.replace(/[—–]/g, ",");
 }
 
+/*
+ * Currency guard. remark-math treats any $...$ pair as inline math, so prose
+ * with two dollar amounts ("say, $100 now ... that future $100") gets its
+ * middle span handed to KaTeX and rendered as squashed math italic. The
+ * system prompts tell the model to escape currency, but RAG'd syllabus chunks
+ * and student-typed text flow through this renderer too, so we also guard
+ * deterministically: any single-$ span that doesn't look like math gets both
+ * dollars escaped and renders literally. $$...$$ display math is never touched.
+ */
+
+// A span is real math if it has a LaTeX command, a sub/superscript, an
+// equals sign, or is a single whitespace-free token containing a letter.
+function looksLikeMath(inner: string): boolean {
+  if (/\\[a-zA-Z]/.test(inner)) return true; // \text, \frac, \pi
+  if (/[\^_=]/.test(inner)) return true; // v_0, x^2, F = ma
+  if (/^\S{1,15}$/.test(inner) && /[a-zA-Z]/.test(inner)) return true; // $x$, $v_0$
+  return false;
+}
+
+function protectCurrency(text: string): string {
+  return text.replace(
+    /(?<!\$)\$(?!\$)([^$\n]{0,200})\$(?!\$)/g,
+    (whole, inner: string) => (looksLikeMath(inner) ? whole : `\\$${inner}\\$`)
+  );
+}
+
 export function Markdown({
   children,
   className,
@@ -38,7 +64,7 @@ export function Markdown({
       // In inline contexts (e.g. an MCQ choice), don't wrap text in block <p>.
       components={inline ? { p: ({ children }: { children?: ReactNode }) => <>{children}</> } : undefined}
     >
-      {stripDashes(children)}
+      {protectCurrency(stripDashes(children))}
     </ReactMarkdown>
   );
 
