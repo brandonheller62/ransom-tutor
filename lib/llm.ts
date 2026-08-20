@@ -13,7 +13,7 @@ import OpenAI from "openai";
 import { parseDataUrl } from "./image";
 
 const OPENAI_MODEL = "gpt-5-mini";
-const ANTHROPIC_MODEL = "claude-opus-4-8";
+const ANTHROPIC_MODEL = "claude-opus-5";
 
 export interface LlmMessage {
   role: "user" | "assistant";
@@ -132,7 +132,10 @@ async function completeOnce(
     });
     const res = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: maxTokens,
+      // Opus 5 thinks by default and thinking tokens count against max_tokens,
+      // so floor the budget like the OpenAI reasoning path below.
+      max_tokens: Math.max(maxTokens, 4096),
+      thinking: { type: "adaptive" },
       system,
       messages: anthropicMessages,
     });

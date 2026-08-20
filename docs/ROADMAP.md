@@ -12,7 +12,7 @@ Your single source of truth for "what's done" and "what's next." Updated 2026-06
 image attachments), and — as of 2026-06-02 — **RAG grounding on the live site**.
 The model calls now run on **Anthropic** (`ANTHROPIC_API_KEY` is set in prod): the
 chat tutor uses **`claude-sonnet-5`** (fast + cost-efficient) and quiz generation +
-FRQ grading use **`claude-opus-4-8`** (`lib/llm.ts`). If the Anthropic key is ever
+FRQ grading use **`claude-opus-5`** (`lib/llm.ts`). If the Anthropic key is ever
 removed, both paths fall back to the **OpenAI bridge (`gpt-5-mini`)** with no code
 change.
 

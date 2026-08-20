@@ -30,7 +30,7 @@ import {
 export const runtime = "nodejs";
 
 // The chat tutor runs on Sonnet 5 (fast + cheap, indistinguishable from Opus
-// for Socratic tutoring). The quiz backend keeps Opus 4.8 for FRQ grading
+// for Socratic tutoring). The quiz backend runs Opus 5 for FRQ grading
 // (see lib/llm.ts) — grading free-response is the most judgment-heavy call.
 const ANTHROPIC_MODEL = "claude-sonnet-5";
 const OPENAI_MODEL = "gpt-5-mini";
