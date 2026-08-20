@@ -25,6 +25,9 @@ export const runtime = "nodejs";
 const RETRIEVAL_COURSE: Record<CourseKey, string> = {
   physics: "physics",
   datascience: "data-science",
+  quantfinance: "quant-finance",
+  digitalnarrative: "digital-narrative",
+  advancedml: "advanced-ml",
 };
 
 interface QuizRequest {

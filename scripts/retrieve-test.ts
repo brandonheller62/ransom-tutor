@@ -5,7 +5,10 @@
  * embeds a question with Voyage and pulls the closest physics chunks via
  * Supabase match_documents(). Run:
  *
- *   npx tsx scripts/retrieve-test.ts "your question here"
+ *   npx tsx scripts/retrieve-test.ts "your question here" [course-label]
+ *
+ * course-label is the Supabase metadata label (physics, data-science,
+ * quant-finance, digital-narrative, advanced-ml); defaults to physics.
  */
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
@@ -17,8 +20,9 @@ config({ path: ".env.local", quiet: true });
 const { retrieveContext } = await import("../lib/retrieve");
 
 const question = process.argv[2] ?? "What is the late work and AI use policy?";
+const course = process.argv[3] ?? "physics";
 
-const chunks = await retrieveContext(question, "physics", 3);
+const chunks = await retrieveContext(question, course, 3);
 
 console.log(`\nQ: ${question}\n`);
 console.log(`Got ${chunks.length} chunk(s):\n`);

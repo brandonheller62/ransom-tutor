@@ -40,6 +40,9 @@ const OPENAI_MODEL = "gpt-5-mini";
 const RETRIEVAL_COURSE: Record<CourseKey, string> = {
   physics: "physics",
   datascience: "data-science",
+  quantfinance: "quant-finance",
+  digitalnarrative: "digital-narrative",
+  advancedml: "advanced-ml",
 };
 
 interface ChatMessage {
