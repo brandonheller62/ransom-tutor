@@ -1,6 +1,6 @@
 # Socratic Tutor — Roadmap
 
-Your single source of truth for "what's done" and "what's next." Updated 2026-06-02.
+Your single source of truth for "what's done" and "what's next." Updated 2026-08-20.
 
 ---
 
@@ -9,12 +9,17 @@ Your single source of truth for "what's done" and "what's next." Updated 2026-06
 **All five milestones are LIVE and verified in production** at
 **https://ransomtutor.vercel.app**: the chat tutor, the practice quizzes
 (MCQ/FRQ + grading), local progress tracking, the polish pass (KaTeX math +
-image attachments), and — as of 2026-06-02 — **RAG grounding on the live site**.
-The model calls now run on **Anthropic** (`ANTHROPIC_API_KEY` is set in prod): the
+image attachments), and **RAG grounding on the live site**.
+The model calls run on **Anthropic** (`ANTHROPIC_API_KEY` is set in prod): the
 chat tutor uses **`claude-sonnet-5`** (fast + cost-efficient) and quiz generation +
-FRQ grading use **`claude-opus-5`** (`lib/llm.ts`). If the Anthropic key is ever
-removed, both paths fall back to the **OpenAI bridge (`gpt-5-mini`)** with no code
-change.
+FRQ grading use **`claude-opus-5`** (`lib/llm.ts`, since 2026-08-20). If the
+Anthropic key is ever removed, both paths fall back to the **OpenAI bridge
+(`gpt-5-mini`)** with no code change.
+
+**Five courses are live** (2026-08-20): Physics, Data Science, **Quantitative
+Finance & AI** (7 units), **Digital Narrative** (2 units), and **Advanced
+Machine Learning** (6 units) — all in `lib/courses.ts` with per-unit starter
+prompts, and all RAG-ingested into Supabase.
 
 **Milestone 5 — Ship it is DONE.** The app is deployed to **Vercel**,
 auto-deploying from `main`, with all required env vars set in Production and
@@ -25,7 +30,7 @@ logs).
 |------|------|
 | ✅ | Supabase database (documents table, vector(1024), match_documents, HNSW, RLS) |
 | ✅ | Voyage embeddings (voyage-3.5, 1024 dims) |
-| ✅ | Ingestion script (`scripts/ingest.ts`) — physics + data-science syllabi ingested (32 chunks) |
+| ✅ | Ingestion script (`scripts/ingest.ts`) — all five courses ingested (~149 chunks: physics 20, data-science 12, advanced-ml 39, digital-narrative 36, quant-finance 42) |
 | ✅ | Retrieval helper (`lib/retrieve.ts`) — tested, returns ranked chunks |
 | ✅ | New-format Supabase keys (`sb_secret_` / `sb_publishable_`) |
 | ✅ | Next.js 16 app scaffolded (App Router, TypeScript, Tailwind) |
@@ -35,15 +40,14 @@ logs).
 
 ## 👉 WHERE THINGS STAND
 
-All five milestones are built, deployed, and verified in production (Milestone 5
-includes RAG grounding, confirmed live 2026-06-02). The model currently runs on
-the **OpenAI `gpt-5-mini`** bridge; to switch to Claude, add `ANTHROPIC_API_KEY`
-to `.env.local` (local) and to Vercel's env vars (production) — the app
-auto-prefers Anthropic.
+All five milestones are built, deployed, and verified in production, and the app
+runs on **Anthropic** in prod (`claude-sonnet-5` chat / `claude-opus-5` quizzes).
+Recent additions beyond the original milestones: three new courses (2026-08-20),
+mode-switching + mode-aware starter prompts, retry/error handling for transient
+LLM failures, the mobile UI overhaul, and the currency guard in `app/Markdown.tsx`
+(dollar amounts no longer get swallowed by the math renderer — important for
+Quant Finance).
 
-Remaining odds and ends:
-- (Optional) Get an Anthropic key to move off the temporary OpenAI bridge. After
-  adding it to Vercel, trigger a fresh build (see the build-time env gotcha below).
 
 ### Milestone 1 — Make the chat actually tutor ✅ DONE (live in production)
 
@@ -59,14 +63,12 @@ The chat tutor is wired end to end and verified responding:
   "I solved it", "new problem", Reset, and Export all call the live tutor and
   render the streamed reply.
 
-**To swap to Claude later (preferred):** paste your key into the
-`ANTHROPIC_API_KEY=` line in `.env.local` and restart `npm run dev`. The route
-auto-prefers Anthropic; nothing else to change. Get the key from
-https://console.anthropic.com → API Keys.
+**Anthropic is live** in both local dev and production. The OpenAI bridge
+remains as an automatic fallback if the key is ever removed.
 
-> ⚠️ Known quirk on the OpenAI bridge: `gpt-5-mini` occasionally emits an em dash
-> despite the "no em/en dashes" rule in `lib/prompts.ts`. Cosmetic only; goes away
-> on Claude. Revisit if it bothers you (could strip em dashes post-stream).
+> ⚠️ Known quirk on the OpenAI bridge (fallback only): `gpt-5-mini` occasionally
+> emits an em dash despite the "no em/en dashes" rule in `lib/prompts.ts`.
+> Cosmetic; `app/Markdown.tsx` strips them anyway.
 
 ---
 
@@ -125,10 +127,10 @@ Supabase) — simplest for a single shared device. Implemented in `lib/progress.
    "Brandon's projects" team, auto-deploying from `main`.
 3. ~~**Environment Variables:**~~ ✅ done — set in Vercel → Settings → Environment
    Variables, scoped to **Production**:
-   - **Required (all set):** `OPENAI_API_KEY`, `VOYAGE_API_KEY`,
-     `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+   - **Required (all set):** `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (fallback),
+     `VOYAGE_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
    - **Skip:** `SUPABASE_URL` + `SUPABASE_SECRET_KEY` (ingest-only, not used by the live
-     app). `ANTHROPIC_API_KEY` — add later to switch to Claude.
+     app).
 4. ~~Confirm RAG works on the live site.~~ ✅ verified 2026-06-02 — runtime logs are
    clean (no `retrieveContext failed`), tutor answers are syllabus-grounded.
 
@@ -164,13 +166,16 @@ Ideas captured for a future round of work. None are started yet.
 - [ ] **Other advanced physics teacher's syllabus** — get that teacher's
       syllabus and ingest it as RAG course material. (Remember: ingestion is
       insert-only — to replace, delete old rows first; see Housekeeping below.)
-- [ ] **Add more classes** — expand beyond Physics / Data Science. Add the new
-      course to `lib/courses.ts` and mind the app-key vs. Supabase-label
-      mismatch (`datascience` vs. `data-science`) handled in `app/api/chat/route.ts`.
-      Candidate classes to consider adding:
+- [x] **Add more classes** — DONE 2026-08-20 for three courses: **Quantitative
+      Finance & AI** (7 units, from the "Story" PDF's unit arc), **Digital
+      Narrative** (2 units), and **Advanced Machine Learning** (6 units). Each
+      needed: a `Course` entry + per-unit starter prompts in `lib/courses.ts`,
+      a `RETRIEVAL_COURSE` row in BOTH `app/api/chat/route.ts` and
+      `app/api/quiz/route.ts` (app-key vs. Supabase-label mismatch), and a
+      `npm run ingest` per PDF (mind the Voyage 3-requests/min free tier —
+      space runs ~70s apart). Remaining candidates:
   - [ ] **Marine Field Research**
   - [ ] **Literary Theory**
-  - [ ] **Quantitative Finance and AI**
 - [x] **"Teach the Tutor" mode (learn-by-teaching)** — DONE. A role-flipped chat
       mode: the *student* teaches and the chatbot plays a curious student
       (protégé effect). Added `"teach"` to `Mode` in `lib/prompts.ts` with a
@@ -207,18 +212,30 @@ Ideas captured for a future round of work. None are started yet.
       and serve instantly from the buffer on "Next" (falling back to a live
       fetch on a miss / after a settings change). Invalidate the buffer when the
       unit, practice mode, or difficulty changes so stale questions aren't served.
-- [ ] **Fix mobile UI** — the app is desktop-first and cramps on phones. Audit
-      `app/globals.css` for fixed widths / non-wrapping rows: the mode + difficulty
-      control bar (`.mode-controls` / `.mode-group`), the course/unit card grids,
-      the chat message column and starter-prompt chips, and the quiz layout. Add
-      responsive breakpoints (stack the control bar, single-column cards, full-width
-      chat, tap-friendly buttons) and verify at ~375px and ~768px widths.
+- [x] **Fix mobile UI** — DONE (2026-07-14). Mobile pass at ≤640px: control
+      strips became horizontally scrollable single rows, header collapses to
+      logo + truncating breadcrumbs, chat height uses `dvh` (mobile Safari URL
+      bar), 16px input floor stops iOS auto-zoom, scroll resets on navigation.
+- [x] **Retry transient LLM errors / friendly error copy** — DONE (2026-07-14).
+      `describeLlmError()` in `lib/llm.ts` classifies 529/429/500/503 and
+      mid-stream SSE errors (status === undefined); chat + quiz routes retry
+      with backoff (only while no tokens have streamed) and ship student-safe
+      messages instead of raw API bodies.
+- [x] **Currency guard in the math renderer** — DONE (2026-08-20).
+      `protectCurrency()` in `app/Markdown.tsx` escapes non-math `$...$` spans
+      so prose with two dollar amounts isn't rendered as math italic, plus a
+      "currency is not math, write \$100" rule in both prompt constants in
+      `lib/prompts.ts`. Critical for Quant Finance.
+- [x] **Quiz backend on Claude Opus 5** — DONE (2026-08-20). `lib/llm.ts` moved
+      from `claude-opus-4-8` to `claude-opus-5` with explicit adaptive thinking
+      and a 4096 `max_tokens` floor (thinking tokens count against the budget).
 
 ---
 
 ## 🧹 Housekeeping (do when convenient)
 - [ ] Ingest any updated PDFs. **Ingestion is insert-only** — to *replace* a
-      syllabus, delete the old rows first, then re-ingest:
+      syllabus, delete the old rows first, then re-ingest. (And remember the
+      Voyage free-tier limit: 3 requests/min — space runs ~70s apart.)
   ```bash
   # 1) delete old rows for a course
   node --input-type=module -e 'import{config}from"dotenv";import{createClient}from"@supabase/supabase-js";config({path:".env.local",quiet:true});const sb=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SECRET_KEY);const{error,count}=await sb.from("documents").delete({count:"exact"}).eq("metadata->>course","data-science");console.log(error?error.message:`deleted ${count}`)'

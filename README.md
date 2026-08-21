@@ -1,7 +1,8 @@
 # Socratic AI Tutor
 
-A guided, Socratic AI tutor for two Ransom Everglades courses, **Advanced Physics: Mechanics**
-and **Applied Data Science**, built for the AI Innovation Fellowship.
+A guided, Socratic AI tutor for five Ransom Everglades courses — **Advanced Physics:
+Mechanics**, **Applied Data Science**, **Quantitative Finance & AI**, **Digital
+Narrative**, and **Advanced Machine Learning** — built for the AI Innovation Fellowship.
 
 The tutor leads students through problems with hints instead of handing over answers,
 grounded in the actual course syllabi via retrieval-augmented generation (RAG).
@@ -10,7 +11,7 @@ grounded in the actual course syllabi via retrieval-augmented generation (RAG).
 [ransomtutor.vercel.app](https://ransomtutor.vercel.app).** The chat tutor, practice
 quizzes (MCQ/FRQ + grading), local progress tracking, KaTeX math, image attachments, a
 learn-by-teaching "Teach the Tutor" mode, and RAG syllabus grounding on the live site all
-work end to end.
+work end to end, across all five courses.
 
 <img width="1366" height="896" alt="image" src="https://github.com/user-attachments/assets/6bb56307-dabb-4a9f-b3bb-214500f604c0" />
 
@@ -80,13 +81,19 @@ AI_Innovation_Fellowship/
 |---------|--------------|
 | `npm run dev` | Start the app locally at http://localhost:3000 |
 | `npm run build` | Production build (also type-checks everything) |
-| `npm run ingest -- "<pdf>" --course=<key> --section=<label>` | Ingest a PDF into Supabase |
-| `npx tsx scripts/retrieve-test.ts "<question>"` | Test RAG retrieval from the terminal |
+| `npm run ingest -- "<pdf>" --course=<label> --section=<label>` | Ingest a PDF into Supabase |
+| `npx tsx scripts/retrieve-test.ts "<question>" [course-label]` | Test RAG retrieval from the terminal |
+
+Course labels in Supabase: `physics`, `data-science`, `quant-finance`,
+`digital-narrative`, `advanced-ml`.
 
 Example ingest:
 ```bash
-npm run ingest -- "./course-materials/Advanced-Physics-Mechanics-Syllabus-2025-2026-.pdf" --course=physics --section=syllabus
+npm run ingest -- "./course-materials/Quantitative-Finance-Syllabus.pdf" --course=quant-finance --section=syllabus
 ```
+
+> Heads up: the Voyage account is on the free tier (3 requests/minute), so space
+> multiple ingest runs about 70 seconds apart or they will hit a 429 rate limit.
 
 ---
 
