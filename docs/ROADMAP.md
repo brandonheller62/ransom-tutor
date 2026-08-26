@@ -1,6 +1,6 @@
 # Socratic Tutor — Roadmap
 
-Your single source of truth for "what's done" and "what's next." Updated 2026-08-20.
+Your single source of truth for "what's done" and "what's next." Updated 2026-08-26.
 
 ---
 
@@ -154,9 +154,10 @@ Supabase) — simplest for a single shared device. Implemented in `lib/progress.
 
 ---
 
-## 🔮 Future milestones (not started — do later)
+## 🔮 Future milestones (open + recently shipped)
 
-Ideas captured for a future round of work. None are started yet.
+Ideas captured for future rounds of work. Open items are `[ ]`; `[x]` entries
+have shipped and are kept here as a record of what was done and where.
 
 - [ ] **Real problems from the class** — pull in the actual problems used in
       class as exemplars, then have the tutor/quizzes generate *new* questions
@@ -166,6 +167,32 @@ Ideas captured for a future round of work. None are started yet.
 - [ ] **Other advanced physics teacher's syllabus** — get that teacher's
       syllabus and ingest it as RAG course material. (Remember: ingestion is
       insert-only — to replace, delete old rows first; see Housekeeping below.)
+- [ ] **User accounts / login (real database)** — replace the anonymous
+      single-device model with per-user accounts so progress and history follow
+      the student across devices. Supabase Auth is the natural fit (the project
+      already runs Supabase for the vector store): email magic-link or Google
+      sign-in, a `profiles` table keyed by `auth.uid()`, and RLS policies so a
+      row is only readable by its owner. Needs a session provider in
+      `app/layout.tsx`, a signed-in/signed-out header state in `app/page.tsx`,
+      and a migration path for the existing `socratic_progress_v1` localStorage
+      blob (on first login, upload the local progress, then treat the server as
+      the source of truth). Note this supersedes the Milestone 3 decision to keep
+      progress local — keep localStorage as the offline/logged-out fallback.
+- [ ] **Persist chats across sessions** — save every chat to the database instead
+      of losing it on refresh. Tables: `conversations` (id, user_id, course,
+      unit, mode, difficulty, title, created_at, updated_at) and `messages`
+      (id, conversation_id, role, content, image_url, created_at), both under
+      RLS. Write on each completed turn in `app/api/chat/route.ts` (append the
+      user message before streaming, the assistant message when the stream
+      closes) so a dropped connection doesn't lose the exchange. Depends on user
+      accounts above for the `user_id`.
+- [ ] **Resume any past chat** — a history panel listing the student's past
+      conversations (auto-titled from the first user message, grouped by course
+      and unit, most recent first) that loads the full message thread back into
+      `app/page.tsx` and lets the tutor continue with the prior context intact.
+      Include rename and delete, and make sure resuming restores the mode and
+      difficulty the chat was started in (mode switching currently clears the
+      chat via `handleModeChange` — resuming must not trip that).
 - [x] **Add more classes** — DONE 2026-08-20 for three courses: **Quantitative
       Finance & AI** (7 units, from the "Story" PDF's unit arc), **Digital
       Narrative** (2 units), and **Advanced Machine Learning** (6 units). Each
