@@ -1,6 +1,6 @@
 # Socratic Tutor — Roadmap
 
-Your single source of truth for "what's done" and "what's next." Updated 2026-08-26.
+Your single source of truth for "what's done" and "what's next." Updated 2026-08-27.
 
 ---
 
@@ -19,7 +19,11 @@ Anthropic key is ever removed, both paths fall back to the **OpenAI bridge
 **Five courses are live** (2026-08-20): Physics, Data Science, **Quantitative
 Finance & AI** (7 units), **Digital Narrative** (2 units), and **Advanced
 Machine Learning** (6 units) — all in `lib/courses.ts` with per-unit starter
-prompts, and all RAG-ingested into Supabase.
+prompts, and all RAG-ingested into Supabase. Quant Finance is the deepest-
+grounded course: beyond the syllabus and the "Story" PDF, the **Investment
+Instruments** deck was ingested on 2026-08-27 (32 chunks, section
+`investment instruments`), so the tutor can ground answers about stocks,
+bonds, options, ETFs, and closed-end funds in the actual class material.
 
 **Milestone 5 — Ship it is DONE.** The app is deployed to **Vercel**,
 auto-deploying from `main`, with all required env vars set in Production and
@@ -30,7 +34,7 @@ logs).
 |------|------|
 | ✅ | Supabase database (documents table, vector(1024), match_documents, HNSW, RLS) |
 | ✅ | Voyage embeddings (voyage-3.5, 1024 dims) |
-| ✅ | Ingestion script (`scripts/ingest.ts`) — all five courses ingested (~149 chunks: physics 20, data-science 12, advanced-ml 39, digital-narrative 36, quant-finance 42) |
+| ✅ | Ingestion script (`scripts/ingest.ts`) — all five courses ingested (180 chunks: physics 19, data-science 12, advanced-ml 39, digital-narrative 36, quant-finance 74) |
 | ✅ | Retrieval helper (`lib/retrieve.ts`) — tested, returns ranked chunks |
 | ✅ | New-format Supabase keys (`sb_secret_` / `sb_publishable_`) |
 | ✅ | Next.js 16 app scaffolded (App Router, TypeScript, Tailwind) |

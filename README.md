@@ -63,7 +63,7 @@ AI_Innovation_Fellowship/
 ├── scripts/              # standalone command-line tools (run with tsx)
 │   ├── ingest.ts         #   ingest a PDF into Supabase (extract → chunk → embed)
 │   └── retrieve-test.ts  #   manual test of retrieval
-├── course-materials/     # source PDFs ingested into the RAG store
+├── course-materials/     # source PDFs ingested into the RAG store (7 PDFs, 180 chunks)
 ├── docs/                 # human-facing docs (not shipped)
 │   ├── ROADMAP.md        #   ← what's done and what's next
 │   ├── prototype/        #   the original single-file HTML prototype (design blueprint)
@@ -85,7 +85,9 @@ AI_Innovation_Fellowship/
 | `npx tsx scripts/retrieve-test.ts "<question>" [course-label]` | Test RAG retrieval from the terminal |
 
 Course labels in Supabase: `physics`, `data-science`, `quant-finance`,
-`digital-narrative`, `advanced-ml`.
+`digital-narrative`, `advanced-ml`. A course can hold more than one document —
+`quant-finance`, for example, is grounded in three: the syllabus, the "Story"
+PDF, and the Investment Instruments deck.
 
 Example ingest:
 ```bash
@@ -94,6 +96,9 @@ npm run ingest -- "./course-materials/Quantitative-Finance-Syllabus.pdf" --cours
 
 > Heads up: the Voyage account is on the free tier (3 requests/minute), so space
 > multiple ingest runs about 70 seconds apart or they will hit a 429 rate limit.
+
+> Ingestion is insert-only. Running it twice on the same PDF stores the chunks
+> twice, so delete a document's old rows before re-ingesting an updated version.
 
 ---
 

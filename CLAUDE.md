@@ -10,7 +10,10 @@ It tutors students in five classes (all defined in `lib/courses.ts`, all RAG-ing
 - **Advanced Physics: Mechanics** (10 units, algebra-based, SCI 514)
 - **Applied Data Science** (9 units, Python-based, 2-semester arc)
 - **Quantitative Finance & AI** (7 units, MATH 621; unit arc comes from the
-  "Story" PDF — the syllabus itself has no unit breakdown)
+  "Story" PDF — the syllabus itself has no unit breakdown. Three PDFs are
+  ingested under the `quant-finance` label: the syllabus, the Story, and the
+  **Investment Instruments** deck (section `investment instruments`, added
+  2026-08-27) covering stocks, bonds, options, ETFs, and closed-end funds)
 - **Digital Narrative** (2 units — genuinely a two-unit English seminar)
 - **Advanced Machine Learning** (6 units, Colab/scikit-learn → NLP → LLMs → capstone)
 
@@ -113,6 +116,11 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   not v1's default export). Uses `SUPABASE_SECRET_KEY` (bypasses RLS to write).
   NB: the Voyage account is on the free tier (3 requests/min) — space multiple ingest
   runs ~70s apart or they 429; failures happen before insert, so no partial rows.
+  Ingestion is **insert-only**: re-running it on the same PDF duplicates rows, so to
+  replace a document delete its rows first (filter on `metadata->>source`).
+  Source PDFs live in `course-materials/`; the store holds 180 chunks across the five
+  courses (physics 19, data-science 12, advanced-ml 39, digital-narrative 36,
+  quant-finance 74).
 - `scripts/retrieve-test.ts` — manual retrieval test; takes the question and an optional
   Supabase course label (`physics` default) as args; dynamically imports `retrieve.ts`
   after loading `.env.local` (static ESM imports hoist above dotenv).
