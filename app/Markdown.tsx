@@ -30,12 +30,28 @@ function stripDashes(text: string): string {
  * and student-typed text flow through this renderer too, so we also guard
  * deterministically: any single-$ span that doesn't look like math gets both
  * dollars escaped and renders literally. $$...$$ display math is never touched.
+ *
+ * The span scan deliberately matches what remark-math itself accepts: inline
+ * math may run across newlines and has no length limit, so the guard must too,
+ * or long/wrapped prose slips past it. A $ already escaped by the model (\$)
+ * is left alone — markdown renders it literally on its own.
  */
 
-// A span is real math if it has a LaTeX command, a sub/superscript, an
-// equals sign, or is a single whitespace-free token containing a letter.
+// Decides whether a $...$ span is real math. Ordered so that prose signals are
+// ruled out before the weaker math signals (=, _, ^) are trusted: prose like
+// "Tier_1 costs $50 while Tier_2" would otherwise qualify on its underscore.
 function looksLikeMath(inner: string): boolean {
+  // A LaTeX control sequence is conclusive; nothing in prose produces one.
   if (/\\[a-zA-Z]/.test(inner)) return true; // \text, \frac, \pi
+
+  // TeX itself disallows whitespace hugging the delimiters, and a currency
+  // span nearly always has it ("$100 and revenue = $" ends with a space).
+  if (/^\s|\s$/.test(inner)) return false;
+  // Inline math never spans a blank line, but runaway prose spans do.
+  if (/\n[ \t]*\n/.test(inner)) return false;
+  // "$50 while Tier_" — an amount followed by an ordinary word is currency.
+  if (/^\d[\d,]*(\.\d+)?\s+[a-z]/.test(inner)) return false;
+
   if (/[\^_=]/.test(inner)) return true; // v_0, x^2, F = ma
   if (/^\S{1,15}$/.test(inner) && /[a-zA-Z]/.test(inner)) return true; // $x$, $v_0$
   return false;
@@ -43,7 +59,7 @@ function looksLikeMath(inner: string): boolean {
 
 function protectCurrency(text: string): string {
   return text.replace(
-    /(?<!\$)\$(?!\$)([^$\n]{0,200})\$(?!\$)/g,
+    /(?<![\\$])\$(?!\$)([^$]*?)(?<!\\)\$(?!\$)/g,
     (whole, inner: string) => (looksLikeMath(inner) ? whole : `\\$${inner}\\$`)
   );
 }
