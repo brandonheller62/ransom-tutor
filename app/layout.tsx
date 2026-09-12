@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Socratic AI Tutor",
+  title: "Ransom Tutor",
   description:
     "A guided, Socratic tutor for Ransom Everglades courses: Advanced Physics, Applied Data Science, Quantitative Finance & AI, Digital Narrative, and Advanced Machine Learning.",
 };

@@ -51,9 +51,10 @@ mode-switching + mode-aware starter prompts, retry/error handling for transient
 LLM failures, the mobile UI overhaul, and the currency guard in `app/Markdown.tsx`
 (dollar amounts no longer get swallowed by the math renderer — important for
 Quant Finance). On 2026-09-12: instant "Next" in quizzes (background prefetch), no
-more near-duplicate questions within a session, a UI cleanup pass, and two MCQ
+more near-duplicate questions within a session, a UI cleanup pass, two MCQ
 rendering fixes (choice D overwritten by explanation text; math delimiters broken
-by the currency guard).
+by the currency guard), and an accessibility pass from a design audit (keyboard
+access, screen-reader announcements, contrast, touch targets, reduced motion).
 
 
 ### Milestone 1 — Make the chat actually tutor ✅ DONE (live in production)
@@ -234,7 +235,7 @@ have shipped and are kept here as a record of what was done and where.
       bubble now shows an animated three-dot typing indicator while `isStreaming`
       and the accumulated text is still empty, then swaps to the streamed text on
       the first token (`app/page.tsx`). Reused the already-defined-but-unused
-      `.typing-dots` / `@keyframes typingBounce` styles in `app/globals.css`
+      `.typing-dots` styles in `app/globals.css` (now `@keyframes typingPulse`)
       (the JSX previously rendered a static "…"). Verified live in the browser.
       (Follow-up idea: give the FRQ "Grading..." wait the same treatment.)
 - [x] **Pre-generate quiz questions to cut wait time** — DONE (2026-09-12).
@@ -272,6 +273,28 @@ have shipped and are kept here as a record of what was done and where.
       gradient text, no card hover accent strip, box-style blockquotes instead of
       a side border, pulsing (not hopping) typing dots, and progress bars animated
       with `transform` instead of `width`.
+- [x] **Accessibility + audit fixes**: DONE (2026-09-12). A design audit scored the
+      app 12/20, held back by accessibility (1/4). Fixed:
+      - Keyboard: course/unit cards, logo, and breadcrumbs were divs with onClick and
+        unreachable by Tab; now real buttons, with a palette `:focus-visible` ring.
+      - Screen readers: `role="status"` announcer for toasts and quiz results, chat
+        as `role="log"` with `aria-busy` while streaming, ARIA tabs for Chat/Practice,
+        `aria-pressed` toggles, labels on the chat box, FRQ answer, and goal input.
+      - Dialogs: `useDialog()` adds focus-in, Tab trap, Escape, and focus return.
+      - Contrast: `--text-faint` from 2.95:1 to 5.0:1; Send gradient end to 5:1.
+      - Touch: 44px targets under `(pointer: coarse)`; trailing-edge fade on
+        scrollable mobile control rows.
+      - Motion: `MotionConfig reducedMotion="user"`; reduced motion keeps loaders
+        pulsing instead of freezing them; no smooth scroll per streamed chunk.
+      - Polish: success/danger tokens, "Ransom Tutor" in header and title, fixed
+        wrong-answer copy, removed unused `lib/utils.ts` (clsx, tailwind-merge).
+      Browser-verified: tab order and dialog focus behavior. Not yet verified in a
+      live browser: the unit screen (tabs, toggles), phone touch sizes, reduced
+      motion. Worth a quick manual check.
+- [ ] **Dark mode** (from the audit, deliberately not done): tokens are ready for
+      it, but it changes the look for everyone on a dark-mode device, so it needs a
+      design decision first.
+- [ ] **Lint**: `lib/retrieve.ts:45` has a pre-existing `no-explicit-any` error.
 - [x] **Fix mobile UI** — DONE (2026-07-14). Mobile pass at ≤640px: control
       strips became horizontally scrollable single rows, header collapses to
       logo + truncating breadcrumbs, chat height uses `dvh` (mobile Safari URL

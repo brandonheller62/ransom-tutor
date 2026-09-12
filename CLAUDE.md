@@ -82,7 +82,21 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   so late responses after a unit/mode switch are dropped. `recentQuestionsRef` holds the
   last 6 questions shown this session and is sent as `recent` on every generate request
   (including the prefetch) so the model doesn't repeat itself.
+  Accessibility wiring (2026-09-12 audit): every clickable thing is a real `<button>`
+  (cards are `motion.button`, so their children must be spans, not divs); a hidden
+  `role="status"` region fed by `announce()` reads toasts and quiz results; the chat
+  list is `role="log"` with `aria-busy={isStreaming}` so replies are read once complete;
+  Chat/Practice is an ARIA tablist (arrow keys); toggle buttons carry `aria-pressed`.
+  `useDialog(open, onClose)` gives both modals focus-in, Tab trapping, Escape, and focus
+  return. GOTCHA: never put `autoFocus` inside a dialog; React focuses it before the
+  hook runs, so the hook records the input as the opener and focus never returns.
+  The tree is wrapped in `<MotionConfig reducedMotion="user">`.
 - `app/globals.css` — the design system ported from the prototype (green/mint theme).
+  Tokens include answer states (`--success-bg`, `--danger`, ...); `--text-faint` is held
+  at 4.5:1+ contrast because it styles small uppercase labels. Global `:focus-visible`
+  ring in `--accent`. `@media (pointer: coarse)` sets 44px touch targets (keyed to input
+  device so iPads get it). Mobile control rows fade their trailing edge via a scroll-driven
+  `--row-fade` animation. Reduced motion removes movement but keeps loaders pulsing.
 - `lib/courses.ts` — `classes` (titles, descriptions, syllabi, units) and
   `starterPromptsByUnit`. Source of truth for course content.
 - `lib/retrieve.ts` — `retrieveContext(question, course, matchCount, threshold)`;
@@ -171,6 +185,9 @@ prototype remains useful as a design/behavior reference.
   three rules, since RAG chunks and student text flow through the renderer too.
 - **Hint gate**: "Show me the answer" stays disabled until the student uses 2 hints.
 - **AI policy tiers**: both syllabi use Red/Yellow/Green; include in General Questions context.
+- **Accessible by default**: new clickable UI is a `<button>` (never a div with onClick),
+  icon-only controls get `aria-label`, selected states get `aria-pressed`/`aria-selected`,
+  and status changes a student needs to hear go through `announce()`.
 
 ## Secrets
 

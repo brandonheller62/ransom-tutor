@@ -13,7 +13,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
     "@supabase/supabase-js": "^2.106.2",
-    "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "framer-motion": "^12.40.0",
     "katex": "^0.17.0",
@@ -25,8 +24,7 @@
     "react-markdown": "^10.1.0",
     "rehype-katex": "^7.0.1",
     "remark-breaks": "^4.0.0",
-    "remark-math": "^6.0.0",
-    "tailwind-merge": "^3.6.0"
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

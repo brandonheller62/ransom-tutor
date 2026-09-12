@@ -16,7 +16,7 @@
   /* Text */
   --text: #14241d;
   --text-muted: #5c6f67;
-  --text-faint: #8a9a92;
+  --text-faint: #62736b; /* 5.0:1 on white, 4.5:1 on --bg: small uppercase labels use it */
 
   /* Green identity */
   --accent: #1f6f4d;
@@ -28,8 +28,15 @@
   --mint: #7fc6a6;
   --mint-light: #b8ddc9;
 
-  /* Bubbles */
-  --user-bubble: linear-gradient(135deg, #1f6f4d 0%, #2a8a61 100%);
+  /* Answer states */
+  --success-bg: #e8f5ed;
+  --success-border: #b5d9c1;
+  --danger: #c0392b;
+  --danger-bg: #fef0ef;
+  --danger-border: #f5bdb9;
+
+  /* Bubbles (gradient end keeps white Send text at 5:1) */
+  --user-bubble: linear-gradient(135deg, #1f6f4d 0%, #267d58 100%);
   --tutor-bubble: #eef4f1;
 
   /* Elevation — layered, soft, green-tinted */
@@ -60,6 +67,18 @@ body {
 
 .container { max-width: 1120px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
 
+/* Keyboard focus, drawn from the palette instead of the browser default. Mouse
+   clicks don't trigger :focus-visible, so pointer users never see it. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card:focus-visible { outline-offset: 3px; }
+::selection { background: var(--accent-soft-2); color: var(--accent-deep); }
+
+/* Visually hidden but read by screen readers. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 /* ===== Header ===== */
 header {
   position: sticky; top: 0; z-index: 50;
@@ -72,7 +91,7 @@ header {
 }
 .header-inner { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 
-.logo { font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 0.6rem; transition: opacity 0.15s; }
+.logo { font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 0.6rem; transition: opacity 0.15s; background: none; border: none; padding: 0; font-family: inherit; border-radius: 10px; }
 .logo:hover { opacity: 0.8; }
 .logo-mark {
   width: 38px; height: 34px; display: flex; align-items: center; justify-content: center;
@@ -86,8 +105,9 @@ header {
 .logo-mark .e-letter { color: var(--mint); }
 
 .breadcrumbs { font-size: 0.875rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem; }
-.breadcrumbs a { color: var(--text-muted); text-decoration: none; cursor: pointer; transition: color 0.15s; }
-.breadcrumbs a:hover { color: var(--accent); }
+.breadcrumbs .crumb { color: var(--text-muted); cursor: pointer; transition: color 0.15s; background: none; border: none; padding: 0; font: inherit; border-radius: 4px; }
+.breadcrumbs .crumb:hover { color: var(--accent); }
+.breadcrumbs [aria-current="page"] { color: var(--text); }
 .breadcrumbs .sep { color: var(--border-strong); }
 
 /* .page entrance is driven by framer-motion (see app/page.tsx). */
@@ -111,6 +131,8 @@ header {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 1.75rem; cursor: pointer; box-shadow: var(--shadow);
   position: relative; overflow: hidden; display: flex; flex-direction: column;
+  /* Cards are <button>s: undo the native button type and alignment. */
+  font: inherit; color: inherit; text-align: left; width: 100%;
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s, border-color 0.28s;
 }
 .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: var(--border-strong); }
@@ -126,8 +148,8 @@ header {
 .card-general { background: linear-gradient(140deg, var(--accent-soft) 0%, var(--surface) 100%); border-color: var(--border-strong); }
 .card-icon-general { background: var(--accent); color: white; font-weight: 700; }
 
-.card-title { font-size: 1.18rem; font-weight: 650; margin-bottom: 0.4rem; letter-spacing: -0.02em; }
-.card-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.55; }
+.card-title { display: block; font-size: 1.18rem; font-weight: 650; margin-bottom: 0.4rem; letter-spacing: -0.02em; }
+.card-desc { display: block; font-size: 0.9rem; color: var(--text-muted); line-height: 1.55; }
 .card-meta { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--text-faint); font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
 .card-meta span:last-child { color: var(--accent); transition: transform 0.2s; }
 .card:hover .card-meta span:last-child { transform: translateX(3px); }
@@ -222,7 +244,9 @@ header {
 .attach-preview { margin: 0 1.5rem 0.5rem; position: relative; display: inline-block; width: fit-content; }
 .attach-preview img { max-height: 120px; max-width: 220px; border-radius: 10px; border: 1px solid var(--border); display: block; }
 .attach-remove { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; border: none; background: var(--text); color: white; font-size: 0.7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
-.attach-remove:hover { background: #c0392b; }
+.attach-remove:hover { background: var(--danger); }
+/* The visible dot stays 22px; this invisible ring makes the tap target 44px. */
+.attach-remove::after { content: ""; position: absolute; inset: -11px; border-radius: 50%; }
 .message-image { max-width: 100%; max-height: 260px; border-radius: 10px; margin-bottom: 0.5rem; display: block; }
 
 .badge { display: inline-block; background: var(--accent-soft); color: var(--accent-deep); font-size: 0.7rem; padding: 0.18rem 0.55rem; border-radius: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -242,14 +266,14 @@ header {
 
 /* ===== Mastery ring on unit cards ===== */
 .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
-.card-text { flex: 1; min-width: 0; }
-.ring-wrap { width: 46px; height: 46px; flex-shrink: 0; position: relative; }
+.card-text { display: block; flex: 1; min-width: 0; }
+.ring-wrap { display: block; width: 46px; height: 46px; flex-shrink: 0; position: relative; }
 .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring-track { fill: none; stroke: var(--surface-3); stroke-width: 4; }
 .ring-fill { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
 .ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); }
 .ring-label.complete { color: var(--accent); }
-.last-visited { font-size: 0.75rem; color: var(--text-faint); margin-top: 0.85rem; font-weight: 500; }
+.last-visited { display: block; font-size: 0.75rem; color: var(--text-faint); margin-top: 0.85rem; font-weight: 500; }
 
 /* ===== Unit view tab bar ===== */
 .unit-view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
@@ -306,23 +330,23 @@ header {
 .quiz-choice:disabled { cursor: not-allowed; }
 .quiz-choice-ltr { font-weight: 700; color: var(--text-muted); flex-shrink: 0; width: 1.25rem; transition: color 0.15s; }
 .quiz-choice-text .katex { font-size: 0.95em; }
-.quiz-choice.correct { border-color: var(--accent); background: #e8f5ed; }
+.quiz-choice.correct { border-color: var(--accent); background: var(--success-bg); }
 .quiz-choice.correct .quiz-choice-ltr { color: var(--accent); }
-.quiz-choice.incorrect { border-color: #c0392b; background: #fef0ef; }
-.quiz-choice.incorrect .quiz-choice-ltr { color: #c0392b; }
+.quiz-choice.incorrect { border-color: var(--danger); background: var(--danger-bg); }
+.quiz-choice.incorrect .quiz-choice-ltr { color: var(--danger); }
 
 .quiz-feedback { margin-top: 1.25rem; padding: 1rem 1.25rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.6; animation: fadeIn 0.2s ease; }
 .quiz-feedback p { margin: 0.3rem 0 0; }
 .quiz-feedback p:first-child { margin-top: 0; }
-.quiz-feedback.correct { background: #e8f5ed; border: 1px solid #b5d9c1; }
-.quiz-feedback.incorrect { background: #fef0ef; border: 1px solid #f5bdb9; }
+.quiz-feedback.correct { background: var(--success-bg); border: 1px solid var(--success-border); }
+.quiz-feedback.incorrect { background: var(--danger-bg); border: 1px solid var(--danger-border); }
 .quiz-feedback-verdict { font-weight: 700; margin-bottom: 0.4rem; font-size: 0.95rem; }
 .quiz-feedback.correct .quiz-feedback-verdict { color: var(--accent); }
-.quiz-feedback.incorrect .quiz-feedback-verdict { color: #c0392b; }
+.quiz-feedback.incorrect .quiz-feedback-verdict { color: var(--danger); }
 
 .quiz-frq-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.5rem; display: block; }
 .quiz-frq-textarea { width: 100%; padding: 0.85rem 1rem; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 0.87rem; resize: vertical; min-height: 150px; outline: none; background: var(--surface); color: var(--text); transition: border-color 0.15s; line-height: 1.6; }
-.quiz-frq-textarea:focus { border-color: var(--accent); }
+.quiz-frq-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
 .quiz-frq-feedback { margin-top: 1.25rem; padding: 1.25rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem; line-height: 1.7; animation: fadeIn 0.2s ease; }
 .quiz-frq-feedback strong { color: var(--accent); }
 .quiz-frq-feedback p { margin: 0 0 0.4rem; }
@@ -333,7 +357,7 @@ header {
 .quiz-submit-btn, .quiz-next-btn { background: var(--accent); color: white; border: none; padding: 0.65rem 1.4rem; border-radius: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
 .quiz-submit-btn:hover:not(:disabled), .quiz-next-btn:hover:not(:disabled) { background: var(--accent-hover); }
 .quiz-submit-btn:disabled, .quiz-next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.quiz-error { margin-top: 1rem; color: #c0392b; font-size: 0.9rem; }
+.quiz-error { margin-top: 1rem; color: var(--danger); font-size: 0.9rem; }
 
 /* ===== Notice + toast ===== */
 .notice { background: var(--accent-soft); border: 1px solid var(--accent-soft-2); color: var(--accent-deep); border-radius: var(--radius-sm); padding: 0.65rem 0.9rem; font-size: 0.82rem; }
@@ -350,10 +374,10 @@ header {
   header { margin: -1rem -1rem 1.25rem; padding: 0.65rem 1rem; background: rgba(247, 251, 249, 0.95); }
   .header-inner { flex-wrap: nowrap; min-width: 0; }
   .logo { flex-shrink: 0; }
-  .logo > span { display: none; } /* logo mark alone; breadcrumbs carry the location */
+  .logo-name { display: none; } /* logo mark alone; breadcrumbs carry the location */
   .breadcrumbs { font-size: 0.8rem; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
-  .breadcrumbs a, .breadcrumbs span { white-space: nowrap; }
-  .breadcrumbs a:not(:first-child), .breadcrumbs span:not(.sep) { overflow: hidden; text-overflow: ellipsis; }
+  .breadcrumbs .crumb, .breadcrumbs span { white-space: nowrap; }
+  .breadcrumbs .crumb:not(:first-child), .breadcrumbs span:not(.sep) { overflow: hidden; text-overflow: ellipsis; }
 
   .hero { padding: 1.5rem 0 2.25rem; }
 
@@ -417,8 +441,50 @@ header {
 .modal-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
 .modal-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .goal-input { width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; margin-bottom: 1.25rem; }
-.goal-input:focus { border-color: var(--accent); }
+.goal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
 
+/* ===== Touch targets =====
+   Keyed to the input device, not the width: school iPads are wide but still
+   tapped with fingers. 44px is the minimum comfortable tap size. */
+@media (pointer: coarse) {
+  .mode-btn, .diff-btn, .quiz-pill-btn, .starter-chip, .hint-btn, .reset-btn,
+  .unit-tab, .back-btn, .goal-edit-btn, .modal-btn, .quiz-submit-btn, .quiz-next-btn {
+    min-height: 44px;
+  }
+  .goal-edit-btn, .reset-btn { min-width: 44px; }
+  .breadcrumbs .crumb { min-height: 44px; }
+  .unit-view-header .back-btn { min-height: 44px; }
+}
+
+/* ===== Scroll hint on single-row control strips =====
+   On phones these rows scroll sideways with the scrollbar hidden, so a control
+   past the edge looked absent. The trailing edge fades while more remains and
+   clears once scrolled to the end. A row that fits has an inactive scroll
+   timeline, so --row-fade keeps its 0px initial value and nothing fades. */
+@property --row-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes rowFade { from { --row-fade: 32px; } to { --row-fade: 0px; } }
+@media (max-width: 640px) {
+  @supports (animation-timeline: scroll()) {
+    .mode-group, .starter-prompts, .hint-controls {
+      mask-image: linear-gradient(to right, #000 calc(100% - var(--row-fade)), transparent);
+      animation: rowFade linear both;
+      animation-timeline: scroll(self inline);
+    }
+  }
+}
+
+/* ===== Reduced motion =====
+   Remove movement, keep meaning. Transitions and one-shot entrances collapse to
+   instant, but loaders keep a slow opacity pulse so "working" still reads as
+   working rather than frozen. (framer-motion follows the same setting through
+   MotionConfig reducedMotion="user" in app/page.tsx.) */
+@keyframes calmPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .message, .quiz-card, .quiz-feedback, .quiz-frq-feedback { animation: none; }
+  .quiz-spinner { animation: calmPulse 1.6s ease-in-out infinite; border-color: var(--accent); }
+  .typing-dots span { animation-name: calmPulse; animation-duration: 1.6s; }
+  .card:hover, .card:hover .card-icon, .card:hover .card-meta span:last-child,
+  .starter-chip:hover, .hint-btn:hover:not(:disabled), .hint-btn.solved:hover:not(:disabled),
+  .send-btn:hover:not(:disabled), .quiz-begin-btn:hover { transform: none; }
 }

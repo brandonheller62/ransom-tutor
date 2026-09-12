@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Markdown } from "./Markdown";
 import {
   classes,
@@ -110,9 +110,10 @@ function Ring({ percent }: { percent: number }) {
   const c = 2 * Math.PI * r;
   const dash = (percent / 100) * c;
   const complete = percent >= 100;
+  // Spans, not divs: the ring sits inside a unit card, which is a <button>.
   return (
-    <div className="ring-wrap">
-      <svg viewBox="0 0 44 44">
+    <span className="ring-wrap" role="img" aria-label={`Mastery ${percent} out of 100`}>
+      <svg viewBox="0 0 44 44" aria-hidden="true">
         <circle className="ring-track" cx="22" cy="22" r={r} />
         <circle
           className="ring-fill"
@@ -122,11 +123,60 @@ function Ring({ percent }: { percent: number }) {
           strokeDasharray={`${dash} ${c}`}
         />
       </svg>
-      <div className={"ring-label" + (complete ? " complete" : "")}>
+      <span className={"ring-label" + (complete ? " complete" : "")} aria-hidden="true">
         {complete ? "✓" : percent}
-      </div>
-    </div>
+      </span>
+    </span>
   );
+}
+
+const DIALOG_FOCUSABLE =
+  'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
+
+// Dialog behavior a styled overlay doesn't give on its own: focus moves in on
+// open, Tab stays inside, Escape closes, and focus returns to the opener.
+// Don't put autoFocus inside a dialog: React applies it before this effect runs,
+// so the effect would record the dialog's own input as the opener.
+function useDialog(open: boolean, onClose: () => void) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const node = ref.current;
+    const opener = document.activeElement as HTMLElement | null;
+    const items = () => (node ? [...node.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE)] : []);
+    if (node && !node.contains(document.activeElement)) (items()[0] ?? node).focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCloseRef.current();
+      } else if (e.key === "Tab") {
+        const list = items();
+        if (!list.length) return;
+        const first = list[0];
+        const last = list[list.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
+
+  return ref;
 }
 
 export default function Home() {
@@ -313,14 +363,41 @@ export default function Home() {
     setGoalModalOpen(false);
   }
 
+  // Screen-reader announcements. The live region is always mounted (a region that
+  // appears together with its text is often not read); clearing first makes a
+  // repeated message count as a change.
+  const [announcement, setAnnouncement] = useState("");
+  function announce(msg: string) {
+    setAnnouncement("");
+    window.setTimeout(() => setAnnouncement(msg), 60);
+  }
+
   function showToast(msg: string) {
     setToast(msg);
+    announce(msg);
     window.setTimeout(() => setToast(null), 2600);
   }
 
+  const goalDialogRef = useDialog(goalModalOpen, () => setGoalModalOpen(false));
+  const recapDialogRef = useDialog(recap !== null, () => setRecap(null));
+
+  // Chat tabs: arrow keys move between them, per the ARIA tabs pattern.
+  function onUnitTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next: UnitView = unitView === "chat" ? "practice" : "chat";
+    setUnitView(next);
+    document.getElementById(`unit-tab-${next}`)?.focus();
+  }
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    // Smooth-scrolling on every streamed chunk stacks overlapping scroll animations,
+    // so jump while streaming (and for reduced-motion users) and glide otherwise.
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    messagesEndRef.current?.scrollIntoView({
+      behavior: isStreaming || reduceMotion ? "instant" : "smooth",
+    });
+  }, [messages, isStreaming]);
 
   // useState navigation (no router) keeps the scroll position, so without this a
   // tap on a card lands the next view mid-page.
@@ -662,6 +739,7 @@ export default function Home() {
         setFrqQuestion(result as string);
       }
       setQuizPhase("active");
+      announce("New question ready.");
       // Record before prefetching so the next question is generated knowing this one.
       const shown = typeof result === "string" ? result : result.question;
       recentQuestionsRef.current = [...recentQuestionsRef.current, shown].slice(-6);
@@ -681,6 +759,7 @@ export default function Home() {
     setQuizTotal((t) => t + 1);
     const correct = letter === mcq.correct;
     if (correct) setQuizCorrect((c) => c + 1);
+    announce(correct ? "Correct." : `Incorrect. The answer was ${mcq.correct}.`);
     recordProblem(correct); // counts toward mastery + this study session
   }
 
@@ -710,6 +789,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
       setFrqFeedback(data.feedback as string);
+      announce("Grading complete. Your feedback is below the question.");
       setQuizTotal((t) => t + 1);
       recordProblem(true); // a completed + graded FRQ counts as a solved problem
       setQuizPhase("active");
@@ -733,32 +813,53 @@ export default function Home() {
         : 0
       : Math.min(100, quizTotal * 20);
 
+  const onHome = view === "home";
+  const onClass = view === "class";
+
   return (
+    <MotionConfig reducedMotion="user">
     <div className="container">
+      {/* Always mounted so screen readers pick up each new message. */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </div>
+
       <header>
         <div className="header-inner">
-          <div className="logo" onClick={goHome}>
-            <div className="logo-mark">
+          <button type="button" className="logo" onClick={goHome} aria-label="Ransom Tutor, go home">
+            <span className="logo-mark" aria-hidden="true">
               <span className="r-letter">R</span>
               <span className="e-letter">E</span>
-            </div>
-            <span>Socratic Tutor</span>
-          </div>
-          <div className="breadcrumbs">
-            <a onClick={goHome}>Home</a>
+            </span>
+            <span className="logo-name">Ransom Tutor</span>
+          </button>
+          <nav className="breadcrumbs" aria-label="Breadcrumb">
+            {onHome ? (
+              <span aria-current="page">Home</span>
+            ) : (
+              <button type="button" className="crumb" onClick={goHome}>
+                Home
+              </button>
+            )}
             {course && (
               <>
-                <span className="sep">/</span>
-                <a onClick={() => openClass(currentClass!)}>{course.title}</a>
+                <span className="sep" aria-hidden="true">/</span>
+                {onClass ? (
+                  <span aria-current="page">{course.title}</span>
+                ) : (
+                  <button type="button" className="crumb" onClick={() => openClass(currentClass!)}>
+                    {course.title}
+                  </button>
+                )}
               </>
             )}
             {view === "unit" && currentUnit && (
               <>
-                <span className="sep">/</span>
-                <span>{currentUnit.title}</span>
+                <span className="sep" aria-hidden="true">/</span>
+                <span aria-current="page">{currentUnit.title}</span>
               </>
             )}
-          </div>
+          </nav>
         </div>
       </header>
 
@@ -806,7 +907,10 @@ export default function Home() {
                     sessions
                   </span>
                   <button
+                    type="button"
                     className="goal-edit-btn"
+                    aria-label="Edit weekly goal"
+                    aria-haspopup="dialog"
                     onClick={() => {
                       setGoalDraft(progress.weeklyGoal.target);
                       setGoalModalOpen(true);
@@ -854,7 +958,8 @@ export default function Home() {
             {(Object.keys(classes) as CourseKey[]).map((key) => {
               const c = classes[key];
               return (
-                <motion.div
+                <motion.button
+                  type="button"
                   className="card"
                   key={key}
                   onClick={() => openClass(key)}
@@ -862,14 +967,15 @@ export default function Home() {
                   whileHover={{ y: -4 }}
                   whileTap={{ scale: 0.99 }}
                 >
-                  <div className="card-icon">{c.icon}</div>
-                  <div className="card-title">{c.title}</div>
-                  <div className="card-desc">{c.desc}</div>
-                  <div className="card-meta">
+                  {/* Spans throughout: a <button> may only contain phrasing content. */}
+                  <span className="card-icon" aria-hidden="true">{c.icon}</span>
+                  <span className="card-title">{c.title}</span>
+                  <span className="card-desc">{c.desc}</span>
+                  <span className="card-meta">
                     <span>{c.units.length} units</span>
-                    <span>→</span>
-                  </div>
-                </motion.div>
+                    <span aria-hidden="true">→</span>
+                  </span>
+                </motion.button>
               );
             })}
           </motion.div>
@@ -906,7 +1012,8 @@ export default function Home() {
                 ? getUnitStats(progress, currentClass, unit.id)
                 : defaultUnitStats();
               return (
-                <motion.div
+                <motion.button
+                  type="button"
                   className="card"
                   key={unit.id}
                   onClick={() => openUnit(unit)}
@@ -914,19 +1021,19 @@ export default function Home() {
                   whileHover={{ y: -4 }}
                   whileTap={{ scale: 0.99 }}
                 >
-                  <div className="card-top">
-                    <div className="card-text">
-                      <div className="card-title">{unit.title}</div>
-                      <div className="card-desc">{unit.desc}</div>
-                    </div>
+                  <span className="card-top">
+                    <span className="card-text">
+                      <span className="card-title">{unit.title}</span>
+                      <span className="card-desc">{unit.desc}</span>
+                    </span>
                     <Ring percent={stats.masteryScore} />
-                  </div>
-                  <div className="last-visited">
+                  </span>
+                  <span className="last-visited">
                     {stats.lastVisited
                       ? `Last practiced ${relativeTime(stats.lastVisited)}`
                       : "Not started yet"}
-                  </div>
-                </motion.div>
+                  </span>
+                </motion.button>
               );
             })}
           </motion.div>
@@ -948,52 +1055,62 @@ export default function Home() {
             <button className="back-btn" onClick={goBackToClass}>
               ← Back to units
             </button>
-            <div className="unit-tab-bar">
-              <button
-                className={"unit-tab" + (unitView === "chat" ? " active" : "")}
-                onClick={() => setUnitView("chat")}
-              >
-                Chat Tutor
-              </button>
-              <button
-                className={"unit-tab" + (unitView === "practice" ? " active" : "")}
-                onClick={() => setUnitView("practice")}
-              >
-                Practice Quiz
-              </button>
+            <div className="unit-tab-bar" role="tablist" aria-label="Study mode">
+              {(["chat", "practice"] as UnitView[]).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  id={`unit-tab-${v}`}
+                  aria-selected={unitView === v}
+                  aria-controls={`unit-panel-${v}`}
+                  tabIndex={unitView === v ? 0 : -1}
+                  className={"unit-tab" + (unitView === v ? " active" : "")}
+                  onClick={() => setUnitView(v)}
+                  onKeyDown={onUnitTabKeyDown}
+                >
+                  {v === "chat" ? "Chat Tutor" : "Practice Quiz"}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* ---------- Chat view ---------- */}
           {unitView === "chat" && (
-            <div className="chat-container">
+            <div
+              className="chat-container"
+              role="tabpanel"
+              id="unit-panel-chat"
+              aria-labelledby="unit-tab-chat"
+            >
               <div className="mode-controls">
-                <div className="mode-group">
-                  <span className="control-label">Mode:</span>
-                  <button
-                    className={"mode-btn" + (mode === "tutor" ? " active" : "")}
-                    onClick={() => handleModeChange("tutor")}
-                  >
-                    Socratic Tutor
-                  </button>
-                  <button
-                    className={"mode-btn" + (mode === "checker" ? " active" : "")}
-                    onClick={() => handleModeChange("checker")}
-                  >
-                    Solution Checker
-                  </button>
-                  <button
-                    className={"mode-btn" + (mode === "teach" ? " active" : "")}
-                    onClick={() => handleModeChange("teach")}
-                  >
-                    Teach the Tutor
-                  </button>
+                <div className="mode-group" role="group" aria-label="Tutor mode">
+                  <span className="control-label" aria-hidden="true">Mode:</span>
+                  {(
+                    [
+                      ["tutor", "Socratic Tutor"],
+                      ["checker", "Solution Checker"],
+                      ["teach", "Teach the Tutor"],
+                    ] as [Mode, string][]
+                  ).map(([m, label]) => (
+                    <button
+                      key={m}
+                      type="button"
+                      aria-pressed={mode === m}
+                      className={"mode-btn" + (mode === m ? " active" : "")}
+                      onClick={() => handleModeChange(m)}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                <div className="mode-group">
-                  <span className="control-label">Difficulty:</span>
+                <div className="mode-group" role="group" aria-label="Difficulty">
+                  <span className="control-label" aria-hidden="true">Difficulty:</span>
                   {(["warmup", "standard", "challenge"] as Difficulty[]).map((d) => (
                     <button
                       key={d}
+                      type="button"
+                      aria-pressed={difficulty === d}
                       className={"diff-btn" + (difficulty === d ? " active" : "")}
                       onClick={() => setDifficulty(d)}
                     >
@@ -1011,7 +1128,15 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="messages">
+              {/* aria-busy holds the announcement until the streamed reply is complete,
+                  instead of reading it out chunk by chunk. */}
+              <div
+                className="messages"
+                role="log"
+                aria-live="polite"
+                aria-label="Conversation with the tutor"
+                aria-busy={isStreaming}
+              >
                 <div className="message tutor">
                   {mode === "teach" ? (
                     <>
@@ -1044,10 +1169,11 @@ export default function Home() {
                       m.content ? (
                         <Markdown className="md">{m.content}</Markdown>
                       ) : isStreaming && i === messages.length - 1 ? (
-                        <div className="typing-dots" aria-label="Tutor is thinking">
-                          <span></span>
-                          <span></span>
-                          <span></span>
+                        <div className="typing-dots">
+                          <span aria-hidden="true"></span>
+                          <span aria-hidden="true"></span>
+                          <span aria-hidden="true"></span>
+                          <span className="sr-only">Tutor is thinking</span>
                         </div>
                       ) : (
                         <p></p>
@@ -1154,6 +1280,7 @@ export default function Home() {
                   📎
                 </button>
                 <textarea
+                  aria-label="Message the tutor"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Type your answer..."
@@ -1169,6 +1296,7 @@ export default function Home() {
                   className="send-btn"
                   onClick={onSend}
                   disabled={isStreaming || (!input.trim() && !pendingImage)}
+                  aria-label={isStreaming ? "Tutor is replying" : "Send"}
                 >
                   {isStreaming ? "…" : "Send"}
                 </button>
@@ -1178,12 +1306,15 @@ export default function Home() {
 
           {/* ---------- Practice view ---------- */}
           {unitView === "practice" && (
-            <div>
+            <div role="tabpanel" id="unit-panel-practice" aria-labelledby="unit-tab-practice">
               <div className="quiz-topbar">
-                <div className="quiz-pill-group">
+                <div className="quiz-pill-group" role="group" aria-label="Question type">
                   {(["mcq", "frq"] as PracticeMode[]).map((pm) => (
                     <button
                       key={pm}
+                      type="button"
+                      aria-pressed={practiceMode === pm}
+                      aria-label={pm === "mcq" ? "Multiple choice" : "Free response"}
                       className={"quiz-pill-btn" + (practiceMode === pm ? " active" : "")}
                       onClick={() => switchPracticeMode(pm)}
                     >
@@ -1191,10 +1322,12 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
-                <div className="quiz-pill-group">
+                <div className="quiz-pill-group" role="group" aria-label="Difficulty">
                   {(["warmup", "standard", "challenge"] as Difficulty[]).map((d) => (
                     <button
                       key={d}
+                      type="button"
+                      aria-pressed={practiceDiff === d}
                       className={"quiz-pill-btn" + (practiceDiff === d ? " active" : "")}
                       onClick={() => switchPracticeDiff(d)}
                     >
@@ -1278,7 +1411,7 @@ export default function Home() {
                       <div className="quiz-feedback-verdict">
                         {mcqPicked === mcq.correct
                           ? "✓ Correct!"
-                          : `✗ Incorrect — the answer was ${mcq.correct})`}
+                          : `✗ Incorrect. The answer was ${mcq.correct}.`}
                       </div>
                       {mcq.explanation && <Markdown>{mcq.explanation}</Markdown>}
                     </div>
@@ -1306,8 +1439,11 @@ export default function Home() {
 
                   {!frqFeedback && (
                     <>
-                      <label className="quiz-frq-label">Your Response</label>
+                      <label className="quiz-frq-label" htmlFor="frq-answer">
+                        Your Response
+                      </label>
                       <textarea
+                        id="frq-answer"
                         className="quiz-frq-textarea"
                         value={frqAnswer}
                         onChange={(e) => setFrqAnswer(e.target.value)}
@@ -1408,18 +1544,25 @@ export default function Home() {
             }}
           >
             <motion.div
+              ref={goalDialogRef}
               className="modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="goal-dialog-title"
+              aria-describedby="goal-dialog-desc"
+              tabIndex={-1}
               initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
             >
-              <h3>Weekly goal</h3>
-              <p className="modal-sub">
+              <h3 id="goal-dialog-title">Weekly goal</h3>
+              <p className="modal-sub" id="goal-dialog-desc">
                 How many study sessions per week are you aiming for? (A session = 1+
                 problems attempted.)
               </p>
               <input
                 type="number"
+                aria-label="Sessions per week"
                 className="goal-input"
                 min={1}
                 max={14}
@@ -1428,7 +1571,6 @@ export default function Home() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") saveGoal();
                 }}
-                autoFocus
               />
               <div className="modal-actions">
                 <button className="modal-btn" onClick={() => setGoalModalOpen(false)}>
@@ -1456,12 +1598,17 @@ export default function Home() {
             }}
           >
             <motion.div
+              ref={recapDialogRef}
               className="modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="recap-dialog-title"
+              tabIndex={-1}
               initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
             >
-              <h3>Session recap</h3>
+              <h3 id="recap-dialog-title">Session recap</h3>
               <p className="modal-sub">
                 {recap.unitTitle} · {recap.courseTitle}
               </p>
@@ -1505,5 +1652,6 @@ export default function Home() {
         )}
       </AnimatePresence>
     </div>
+    </MotionConfig>
   );
 }

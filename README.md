@@ -58,8 +58,7 @@ AI_Innovation_Fellowship/
 │   ├── prompts.ts        #   Socratic + quiz system prompts
 │   ├── progress.ts       #   local-only progress engine (localStorage)
 │   ├── image.ts          #   shared image (data URL) parsing for vision
-│   ├── courses.ts        #   course + unit data (titles, syllabi, starter prompts)
-│   └── utils.ts          #   small shared helpers (clsx + tailwind-merge)
+│   └── courses.ts        #   course + unit data (titles, syllabi, starter prompts)
 ├── scripts/              # standalone command-line tools (run with tsx)
 │   ├── ingest.ts         #   ingest a PDF into Supabase (extract → chunk → embed)
 │   └── retrieve-test.ts  #   manual test of retrieval
