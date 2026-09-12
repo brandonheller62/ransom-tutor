@@ -234,15 +234,17 @@ have shipped and are kept here as a record of what was done and where.
       `.typing-dots` / `@keyframes typingBounce` styles in `app/globals.css`
       (the JSX previously rendered a static "…"). Verified live in the browser.
       (Follow-up idea: give the FRQ "Grading..." wait the same treatment.)
-- [ ] **Pre-generate quiz questions to cut wait time** — right now
-      `fetchQuestion` sets `quizPhase = "loading"` and the student stares at
-      "Generating your question..." on every question (`app/page.tsx` ~L544,
-      ~L1121). Prefetch the NEXT question in the background while the student
-      works the current one: keep a small buffer keyed by
-      (unit, practiceMode, difficulty), fill it right after a question is shown,
-      and serve instantly from the buffer on "Next" (falling back to a live
-      fetch on a miss / after a settings change). Invalidate the buffer when the
-      unit, practice mode, or difficulty changes so stale questions aren't served.
+- [x] **Pre-generate quiz questions to cut wait time** — DONE (2026-09-12).
+      `app/page.tsx` keeps a one-slot `prefetchRef` buffer keyed by
+      (course, unit, practiceMode, difficulty) via `questionKey()`. As soon as a
+      question is shown, `prefetchQuestion()` starts generating the next one;
+      "Next" serves it instantly if resolved, awaits it if still in flight, and
+      falls back to a live fetch on a miss or background failure.
+      `resetQuiz()` (unit / mode change) clears the buffer and bumps
+      `quizEpochRef` so late responses are dropped; `switchPracticeDiff()` keeps
+      the current question but re-aims the prefetch at the new difficulty.
+      The first question of a session still waits (nothing to prefetch from).
+      Cost: each practice session ends with one unused generated question.
 - [x] **Fix mobile UI** — DONE (2026-07-14). Mobile pass at ≤640px: control
       strips became horizontally scrollable single rows, header collapses to
       logo + truncating breadcrumbs, chat height uses `dvh` (mobile Safari URL

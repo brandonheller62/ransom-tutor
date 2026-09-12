@@ -63,6 +63,23 @@ interface McqData {
   explanation: string;
 }
 
+interface QuestionRequest {
+  course: CourseKey;
+  unitId: string;
+  mode: PracticeMode;
+  difficulty: Difficulty;
+}
+
+interface PrefetchedQuestion {
+  key: string;
+  promise: Promise<McqData | string>;
+  result?: McqData | string; // set once the promise resolves, so it can be served synchronously
+}
+
+function questionKey(q: QuestionRequest): string {
+  return `${q.course}|${q.unitId}|${q.mode}|${q.difficulty}`;
+}
+
 // A study session = continuous time in one unit. Counts toward streak/weekly
 // goal only once it has at least one attempted problem.
 interface StudySession {
@@ -147,6 +164,12 @@ export default function Home() {
   const [frqFeedback, setFrqFeedback] = useState("");
   const [frqImage, setFrqImage] = useState<string | null>(null);
   const frqFileInputRef = useRef<HTMLInputElement | null>(null);
+  // One-slot buffer holding the NEXT question, generated in the background while
+  // the student works the current one. Keyed by (course, unit, mode, difficulty)
+  // so a settings change never serves a stale question.
+  const prefetchRef = useRef<PrefetchedQuestion | null>(null);
+  // Bumped by resetQuiz so a response that lands after a unit/mode switch is dropped.
+  const quizEpochRef = useRef(0);
 
   // Progress engine (Milestone 3) — local to this device via localStorage.
   const [progress, setProgress] = useState<Progress>(defaultProgress);
@@ -328,6 +351,8 @@ export default function Home() {
   // Clear the practice session (score + current question). Called on unit change
   // and when toggling between MCQ and FRQ so scores don't mix across modes.
   function resetQuiz() {
+    quizEpochRef.current += 1;
+    prefetchRef.current = null;
     setQuizPhase("idle");
     setQuizNum(0);
     setQuizCorrect(0);
@@ -345,6 +370,17 @@ export default function Home() {
     if (pm === practiceMode) return;
     setPracticeMode(pm);
     resetQuiz();
+  }
+
+  // Difficulty changes keep the current question but re-aim the prefetch buffer
+  // so "Next" serves a question at the new level.
+  function switchPracticeDiff(d: Difficulty) {
+    if (d === practiceDiff) return;
+    setPracticeDiff(d);
+    prefetchRef.current = null;
+    if (quizPhase === "active" && currentClass && currentUnit) {
+      prefetchQuestion({ course: currentClass, unitId: currentUnit.id, mode: practiceMode, difficulty: d });
+    }
   }
 
   function goBackToClass() {
@@ -544,10 +580,51 @@ export default function Home() {
 
   // ---------- Practice quizzes (Milestone 2) ----------
 
-  // Fetch the next question for the current mode. Used by both "Start Practice"
-  // and "Next question".
+  // Generate one question. Resolves to the MCQ object or the FRQ prompt text.
+  async function requestQuestion(q: QuestionRequest): Promise<McqData | string> {
+    const res = await fetch("/api/quiz", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: q.mode,
+        course: q.course,
+        unitId: q.unitId,
+        difficulty: q.difficulty,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+    return q.mode === "mcq" ? (data.mcq as McqData) : (data.frq as string);
+  }
+
+  // Start generating the next question in the background (no-op if the buffer
+  // already holds one for these settings). Failures are silent: fetchQuestion
+  // just falls back to a live request.
+  function prefetchQuestion(q: QuestionRequest) {
+    const key = questionKey(q);
+    if (prefetchRef.current?.key === key) return;
+    const entry: PrefetchedQuestion = { key, promise: requestQuestion(q) };
+    entry.promise.then(
+      (result) => (entry.result = result),
+      () => {
+        if (prefetchRef.current === entry) prefetchRef.current = null;
+      },
+    );
+    prefetchRef.current = entry;
+  }
+
+  // Show the next question for the current settings. Used by both "Start
+  // Practice" and "Next question". Serves from the prefetch buffer when it has a
+  // match (instantly if it has already resolved), otherwise fetches live.
   async function fetchQuestion() {
     if (!currentClass || !currentUnit) return;
+    const q: QuestionRequest = {
+      course: currentClass,
+      unitId: currentUnit.id,
+      mode: practiceMode,
+      difficulty: practiceDiff,
+    };
+    const epoch = quizEpochRef.current;
     setQuizError(null);
     setMcq(null);
     setMcqPicked(null);
@@ -555,30 +632,33 @@ export default function Home() {
     setFrqAnswer("");
     setFrqFeedback("");
     setFrqImage(null);
-    setQuizPhase("loading");
+
+    const buffered = prefetchRef.current?.key === questionKey(q) ? prefetchRef.current : null;
+    prefetchRef.current = null;
+    if (!buffered?.result) setQuizPhase("loading");
 
     try {
-      const res = await fetch("/api/quiz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: practiceMode,
-          course: currentClass,
-          unitId: currentUnit.id,
-          difficulty: practiceDiff,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+      let result: McqData | string;
+      if (buffered?.result) {
+        result = buffered.result;
+      } else if (buffered) {
+        // Still generating: wait for it, but retry live if the background call failed.
+        result = await buffered.promise.catch(() => requestQuestion(q));
+      } else {
+        result = await requestQuestion(q);
+      }
+      if (quizEpochRef.current !== epoch) return; // unit or mode changed while waiting
 
       setQuizNum((n) => n + 1);
-      if (practiceMode === "mcq") {
-        setMcq(data.mcq as McqData);
+      if (q.mode === "mcq") {
+        setMcq(result as McqData);
       } else {
-        setFrqQuestion(data.frq as string);
+        setFrqQuestion(result as string);
       }
       setQuizPhase("active");
+      prefetchQuestion(q);
     } catch (err) {
+      if (quizEpochRef.current !== epoch) return;
       const msg = err instanceof Error ? err.message : "Something went wrong.";
       setQuizError(msg);
       setQuizPhase("idle");
@@ -730,14 +810,16 @@ export default function Home() {
                   <div
                     className="goal-bar-fill"
                     style={{
-                      width: `${Math.min(
-                        100,
-                        Math.round(
-                          (progress.weeklyGoal.sessionsThisWeek /
-                            progress.weeklyGoal.target) *
-                            100,
-                        ),
-                      )}%`,
+                      transform: `translateX(${
+                        Math.min(
+                          100,
+                          Math.round(
+                            (progress.weeklyGoal.sessionsThisWeek /
+                              progress.weeklyGoal.target) *
+                              100,
+                          ),
+                        ) - 100
+                      }%)`,
                     }}
                   />
                 </div>
@@ -1105,7 +1187,7 @@ export default function Home() {
                     <button
                       key={d}
                       className={"quiz-pill-btn" + (practiceDiff === d ? " active" : "")}
-                      onClick={() => setPracticeDiff(d)}
+                      onClick={() => switchPracticeDiff(d)}
                     >
                       {d === "warmup" ? "Warm-up" : d === "standard" ? "Standard" : "Challenge"}
                     </button>
@@ -1116,7 +1198,7 @@ export default function Home() {
                   <div className="quiz-score-track">
                     <div
                       className="quiz-score-fill"
-                      style={{ width: `${quizScorePct}%` }}
+                      style={{ transform: `translateX(${quizScorePct - 100}%)` }}
                     />
                   </div>
                 </div>

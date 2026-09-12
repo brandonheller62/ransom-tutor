@@ -97,8 +97,7 @@ header {
 .hero h1 {
   font-size: clamp(2.1rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.08;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, var(--accent-deep) 0%, var(--accent) 55%, var(--mint) 130%);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  color: var(--accent-deep);
 }
 .hero p { color: var(--text-muted); font-size: 1.08rem; max-width: 580px; margin: 0 auto; }
 
@@ -114,13 +113,7 @@ header {
   position: relative; overflow: hidden; display: flex; flex-direction: column;
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s, border-color 0.28s;
 }
-.card::before {
-  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--mint));
-  opacity: 0; transition: opacity 0.28s;
-}
 .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: var(--border-strong); }
-.card:hover::before { opacity: 1; }
 
 .card-icon {
   width: 46px; height: 46px;
@@ -192,14 +185,13 @@ header {
 .message.tutor h1 { font-size: 1.15rem; }
 .message.tutor h2 { font-size: 1.05rem; }
 .message.tutor h3 { font-size: 0.98rem; }
-.message.tutor blockquote { border-left: 3px solid var(--mint); padding-left: 0.75rem; margin: 0.4rem 0; color: var(--text-muted); }
+.message.tutor blockquote { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; margin: 0.4rem 0; color: var(--text-muted); }
 
 .typing-dots { display: inline-flex; gap: 4px; align-items: center; }
-.typing-dots span { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; animation: typingBounce 1.2s infinite; }
+.typing-dots span { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; opacity: 0.35; animation: typingPulse 1.2s ease-in-out infinite; }
 .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
-@keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-5px); opacity: 1; } }
-
+@keyframes typingPulse { 0%, 70%, 100% { opacity: 0.35; transform: scale(0.85); } 35% { opacity: 1; transform: scale(1); } }
 .starter-prompts { padding: 0.75rem 1.5rem 0.25rem; background: transparent; display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .starter-chip { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 0.42rem 0.85rem; border-radius: 999px; font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.18s; }
 .starter-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
@@ -245,7 +237,8 @@ header {
 .stat-label { font-size: 0.7rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-top: 0.15rem; }
 .stat-divider { width: 1px; align-self: stretch; background: var(--border); }
 .goal-bar-track { height: 6px; background: var(--surface-3); border-radius: 999px; overflow: hidden; margin-top: 0.45rem; }
-.goal-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--mint)); border-radius: 999px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+/* Fill is full width and slid in from the left, so the change animates on the compositor (no layout). */
+.goal-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--mint)); border-radius: 999px; transform: translateX(-100%); transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
 
 /* ===== Mastery ring on unit cards ===== */
 .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
@@ -275,7 +268,7 @@ header {
 .quiz-score-area { margin-left: auto; display: flex; align-items: center; gap: 0.6rem; }
 .quiz-score-label { font-size: 0.85rem; font-weight: 650; color: var(--text); white-space: nowrap; }
 .quiz-score-track { width: 110px; height: 6px; background: var(--surface-3); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
-.quiz-score-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--mint)); border-radius: 999px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.quiz-score-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--mint)); border-radius: 999px; transform: translateX(-100%); transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
 
 .quiz-start-card {
   background:
