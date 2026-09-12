@@ -1,6 +1,6 @@
 # Socratic Tutor — Roadmap
 
-Your single source of truth for "what's done" and "what's next." Updated 2026-08-27.
+Your single source of truth for "what's done" and "what's next." Updated 2026-09-12.
 
 ---
 
@@ -50,7 +50,10 @@ Recent additions beyond the original milestones: three new courses (2026-08-20),
 mode-switching + mode-aware starter prompts, retry/error handling for transient
 LLM failures, the mobile UI overhaul, and the currency guard in `app/Markdown.tsx`
 (dollar amounts no longer get swallowed by the math renderer — important for
-Quant Finance).
+Quant Finance). On 2026-09-12: instant "Next" in quizzes (background prefetch), no
+more near-duplicate questions within a session, a UI cleanup pass, and two MCQ
+rendering fixes (choice D overwritten by explanation text; math delimiters broken
+by the currency guard).
 
 
 ### Milestone 1 — Make the chat actually tutor ✅ DONE (live in production)
@@ -245,6 +248,30 @@ have shipped and are kept here as a record of what was done and where.
       the current question but re-aims the prefetch at the new difficulty.
       The first question of a session still waits (nothing to prefetch from).
       Cost: each practice session ends with one unused generated question.
+- [x] **No repeated quiz questions within a session**: DONE (2026-09-12).
+      Consecutive questions used to converge on the unit's most canonical problem
+      (the same cliff projectile twice). `app/page.tsx` sends the last 6 shown
+      questions as `recent` with every generate request, including the prefetch;
+      `quizVariety()` in `lib/prompts.ts` demands a different subtopic, scenario, and
+      structure. Session-scoped: reload or a unit/mode change clears the list.
+- [x] **MCQ choice D contaminated by the explanation**: DONE (2026-09-12).
+      `parseMcq()` ran its choice regex over the whole response, so "(USD)" in an
+      explanation matched as "D)" and replaced the real option (seen live in Quant
+      Finance). Now it scans only between the question and `CORRECT:`, anchors to
+      line starts, and keeps the first match per letter. Mirrored in the prototype.
+- [x] **Math delimiters destroyed by the currency guard**: DONE (2026-09-12).
+      Live symptom: "$5.00%$ for USD" and "$144.29$ yen per dollar" shown with
+      literal dollar signs. `protectCurrency()` now keeps any balanced same-line
+      `$...$` pair for KaTeX and escapes only stray `$`; it also fixes bare `%` and
+      `\$` inside math (the latter mispaired every later `$` in some explanations).
+      Prompts now say: `$...$` only for real math, plain numbers and percentages as
+      text, currency as `\$100` and never inside math, percent in math as `\%`.
+      Verified on 8 fresh Quant Finance MCQs (one per unit + a challenge): all parse,
+      31 math spans render, zero KaTeX errors, D always a real choice.
+- [x] **UI cleanup pass**: DONE (2026-09-12). Solid hero headline instead of
+      gradient text, no card hover accent strip, box-style blockquotes instead of
+      a side border, pulsing (not hopping) typing dots, and progress bars animated
+      with `transform` instead of `width`.
 - [x] **Fix mobile UI** — DONE (2026-07-14). Mobile pass at ≤640px: control
       strips became horizontally scrollable single rows, header collapses to
       logo + truncating breadcrumbs, chat height uses `dvh` (mobile Safari URL
@@ -258,7 +285,8 @@ have shipped and are kept here as a record of what was done and where.
       `protectCurrency()` in `app/Markdown.tsx` escapes non-math `$...$` spans
       so prose with two dollar amounts isn't rendered as math italic, plus a
       "currency is not math, write \$100" rule in both prompt constants in
-      `lib/prompts.ts`. Critical for Quant Finance.
+      `lib/prompts.ts`. Critical for Quant Finance. (Rewritten 2026-09-12, see
+      "Math delimiters destroyed by the currency guard" above.)
 - [x] **Quiz backend on Claude Opus 5** — DONE (2026-08-20). `lib/llm.ts` moved
       from `claude-opus-4-8` to `claude-opus-5` with explicit adaptive thinking
       and a 4096 `max_tokens` floor (thinking tokens count against the budget).

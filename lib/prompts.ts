@@ -6,12 +6,13 @@
  *   - "tutor"   : Socratic guidance (never hands over the answer unasked)
  *   - "checker" : Solution Checker (critiques the student's attempt)
  *   - "general" : course-info assistant grounded in the syllabus (not Socratic)
- *   - "teach"   : role-flipped (learn-by-teaching) — the model plays a curious
+ *   - "teach"   : role-flipped (learn-by-teaching): the model plays a curious
  *                 student and the real student teaches it (the protege effect)
  *
  * Conventions carried from the prototype (see CLAUDE.md "Key conventions"):
  *   - No em/en dashes.
- *   - LaTeX for math: inline $...$, display $$...$$.
+ *   - LaTeX only for real math: inline $...$, display $$...$$. Plain numbers,
+ *     prices, and percentages stay as text; currency is \$100; percent in math is \%.
  *   - Physics answers always include units.
  *
  * Retrieved RAG chunks (from lib/retrieve.ts) are appended as grounding context.
@@ -29,11 +30,20 @@ const QUIZ_DIFFICULTY: Record<Difficulty, string> = {
   challenge: "CHALLENGE: demanding, multiple concepts, non-obvious approach.",
 };
 
+// Shared by getMcqPrompt, getFrqPrompt, and getGradePrompt so questions, answer
+// choices, explanations, and grading feedback all follow the same math rules.
 const QUIZ_FORMATTING =
-  "\n\nFORMATTING: Use LaTeX for ALL math ($...$ for inline, $$...$$ for display). " +
-  "Never use em dashes or en dashes. Always include units. " +
-  "Currency is NOT math: write dollar amounts with a backslash-escaped dollar sign " +
-  "(\\$100, \\$1{,}250) or as words, never inside math delimiters unless part of an equation.";
+  "\n\nFORMATTING:\n" +
+  "- Use $...$ only for actual mathematical expressions: variables, equations, fractions, and symbols " +
+  "(example: $v = v_0 + at$). Use $$...$$ for display math.\n" +
+  "- Do NOT wrap plain numbers, prices, or percentages in $...$. Write 144.29 yen per dollar as plain text, " +
+  "not as $144.29$. Write an interest rate of 5.00% as plain text, not as $5.00%$.\n" +
+  "- Write currency as \\$100, always with the backslash-escaped dollar sign (\\$1,250, not $1,250).\n" +
+  "- Never put a dollar sign inside $...$. Keep the math unitless and name the currency in the prose " +
+  "around it: write $120 \\times 10/365 = 3.29$ million dollars, not $120 \\times 10/365 = \\$3.29$.\n" +
+  "- Inside math, write percent as \\%, never a bare % (a bare % starts a TeX comment and breaks the math).\n" +
+  "- Never use em dashes or en dashes.\n" +
+  "- Always include units.";
 
 function quizGrounding(context?: string): string {
   return context?.trim()
@@ -119,8 +129,11 @@ const FORMATTING_RULES = `
 
 FORMATTING RULES:
 - Never use em dashes or en dashes. Use commas, periods, parentheses, or colons instead.
-- Use LaTeX for ALL math. Wrap inline math in single dollar signs (example: $v = v_0 + at$). Wrap display math in double dollar signs (example: $$F = ma$$).
-- Currency is NOT math. Write dollar amounts with a backslash-escaped dollar sign (\\$100, \\$1{,}250) or as words ("100 dollars"). Never put a dollar amount inside math delimiters unless it is part of an equation.
+- Use $...$ only for actual mathematical expressions: variables, equations, fractions, and symbols (example: $v = v_0 + at$). Wrap display math in double dollar signs (example: $$F = ma$$).
+- Do NOT wrap plain numbers, prices, or percentages in $...$. Write 144.29 yen per dollar as plain text, not as $144.29$. Write an interest rate of 5.00% as plain text, not as $5.00%$.
+- Write currency as \\$100, always with the backslash-escaped dollar sign (\\$1,250, not $1,250).
+- Never put a dollar sign inside $...$. Keep the math unitless and name the currency in the prose around it: write $120 \\times 10/365 = 3.29$ million dollars, not $120 \\times 10/365 = \\$3.29$.
+- Inside math, write percent as \\%, never a bare % (a bare % starts a TeX comment and breaks the math).
 - Use markdown for emphasis with double asterisks for bold and single asterisks for italic.
 - For physics, always include units. Format units in math with backslash text, like $9.8 \\text{ m/s}^2$.
 - Keep responses concise. The student should be doing most of the thinking.`;

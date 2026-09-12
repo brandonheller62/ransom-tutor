@@ -113,7 +113,10 @@ npm run ingest -- "./course-materials/Quantitative-Finance-Syllabus.pdf" --cours
    model and streams the reply into the chat. The chat supports four modes: **Socratic
    Tutor**, **Solution Checker**, and a role-flipped **Teach the Tutor** mode (you teach a
    curious AI student, leveraging the protégé effect), plus a general course-info mode.
-   `app/api/quiz/route.ts` generates and grades practice questions. Models (when
+   `app/api/quiz/route.ts` generates and grades practice questions. The next question
+   is generated in the background while the student works the current one, so "Next"
+   is instant, and each request carries the questions already asked so the session
+   doesn't repeat itself. Models (when
    `ANTHROPIC_API_KEY` is set): the chat tutor runs on **Anthropic `claude-sonnet-5`**
    (fast and cost-efficient), while quiz generation and FRQ grading (`lib/llm.ts`) run on
    **`claude-opus-5`** for the extra judgment grading needs. Without an Anthropic key it

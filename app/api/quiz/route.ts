@@ -37,8 +37,8 @@ interface QuizRequest {
   difficulty: Difficulty;
   question?: string; // for "grade"
   answer?: string; // for "grade"
-  image?: string; // for "grade" — data URL of a photo of handwritten work
-  recent?: string[]; // for "mcq"/"frq" — questions already asked this session, so we don't repeat them
+  image?: string; // for "grade": data URL of a photo of handwritten work
+  recent?: string[]; // for "mcq"/"frq": questions already asked this session, so we don't repeat them
 }
 
 // Bound what the client can push into the prompt.
@@ -68,10 +68,20 @@ function parseMcq(text: string): McqData | null {
   const qMatch = text.match(/QUESTION:\s*([\s\S]+?)(?=\n\s*\*?\*?[A-D]\))/);
   const question = qMatch ? qMatch[1].trim() : null;
 
+  // Only look for choices between the question and CORRECT: (or EXPLANATION: if
+  // CORRECT is missing). Scanning the whole response let explanation prose such as
+  // "(USD) must trade at..." match as choice "D)" and overwrite the real option.
+  const choicesStart = qMatch ? qMatch.index! + qMatch[0].length : 0;
+  const endMatch = text.match(/CORRECT:/) ?? text.match(/EXPLANATION:/);
+  const choicesEnd = endMatch ? endMatch.index! : text.length;
+  const choicesRegion = text.slice(choicesStart, choicesEnd);
+
   const choices: Record<string, string> = {};
-  const choiceRe = /\*?\*?([A-D])\)\*?\*?\s+(.+)/g;
+  // Anchored to the start of a line, so a mid-sentence "(USD)" can't match.
+  const choiceRe = /^\s*\*?\*?([A-D])\)\*?\*?\s+(.+)$/gm;
   let cm: RegExpExecArray | null;
-  while ((cm = choiceRe.exec(text)) !== null) {
+  while ((cm = choiceRe.exec(choicesRegion)) !== null) {
+    if (choices[cm[1]]) continue; // first match wins
     choices[cm[1]] = cm[2].replace(/\*\*/g, "").trim();
   }
 

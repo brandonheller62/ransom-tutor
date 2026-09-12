@@ -76,6 +76,12 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
 
 - `app/page.tsx` — client-side SPA: Home (course cards) → Class (unit cards) →
   Unit (chat + practice-quiz tabs). Navigation via `useState`, no router library yet.
+  Quiz flow: `prefetchRef` is a one-slot buffer that generates the NEXT question in the
+  background as soon as one is shown (keyed by course|unit|mode|difficulty via
+  `questionKey()`), so "Next" is instant; `resetQuiz()` clears it and bumps `quizEpochRef`
+  so late responses after a unit/mode switch are dropped. `recentQuestionsRef` holds the
+  last 6 questions shown this session and is sent as `recent` on every generate request
+  (including the prefetch) so the model doesn't repeat itself.
 - `app/globals.css` — the design system ported from the prototype (green/mint theme).
 - `lib/courses.ts` — `classes` (titles, descriptions, syllabi, units) and
   `starterPromptsByUnit`. Source of truth for course content.
@@ -90,6 +96,10 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   ported from the prototype's `getSystemPrompt()` (tutor / checker / general modes), plus
   a `teach` mode (learn-by-teaching: the model role-plays a curious student and the user
   teaches it; the Difficulty control sets the student persona via `TEACH_PERSONA`).
+  Quiz prompts: `getMcqPrompt` / `getFrqPrompt` / `getGradePrompt` share
+  `QUIZ_FORMATTING`; the chat modes share `FORMATTING_RULES`. Both carry the same math
+  rules (see Key conventions). `quizVariety(recent)` tells the generators to pick a
+  fresh subtopic and scenario and to avoid every previously asked question.
 - `app/api/chat/route.ts` — the tutor backend: retrieves context, builds the prompt,
   streams the reply (Claude `claude-sonnet-5` adaptive thinking, or OpenAI `gpt-5-mini`)
   back as plain text.
@@ -101,17 +111,27 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   floors the budget at 4096 (mirroring the gpt-5 reasoning floor).
 - `app/api/quiz/route.ts` — practice-quiz backend (Milestone 2): `mcq` (generate +
   `parseMcq` into structured choices), `frq` (generate), `grade` (score a response).
-  RAG-grounded by unit topic.
+  RAG-grounded by unit topic. `parseMcq` only scans for `A)`-`D)` lines between the
+  question and `CORRECT:` (or `EXPLANATION:`), anchored to line starts, first match
+  wins. Scanning the whole response once let "(USD)" in an explanation overwrite
+  choice D. Any missing choice still returns null, so the route 422s and logs the raw
+  text. `sanitizeRecent()` caps the client's `recent` list at 6 entries of 500 chars.
+  The prototype's `parseMCQQuizResponse()` mirrors the same parsing rules.
 - `lib/progress.ts` — local-only progress engine (Milestone 3): `Progress` type,
   `computeMastery`, streak/week helpers, `loadProgress`/`saveProgress` (localStorage,
   SSR-guarded). Session tracking + modals are wired in `app/page.tsx`.
 - `app/Markdown.tsx` — `<Markdown>` component (Milestone 4): renders tutor/quiz text as
   Markdown + LaTeX (react-markdown + remark-math + rehype-katex), strips em/en dashes.
   Use `inline` for inline contexts (e.g. MCQ choices). KaTeX CSS is imported in layout.
-  Also runs `protectCurrency()`: single-`$` spans that don't look like math (no LaTeX
-  command, `^`/`_`/`=`, or short single token) get both dollars escaped so prose with
-  two dollar amounts ("$100 now ... that $100 later") isn't eaten by remark-math.
-  Matters constantly for Quant Finance; `$$...$$` and streaming partials are untouched.
+  Also runs `protectCurrency()`, a line-by-line scanner: a `$` is a math delimiter only
+  if a closing `$` exists on the same line and the span is plausible math (no
+  whitespace just inside the delimiters, no dangling `-`/`+`/`,` at the end). Those
+  pairs are kept for KaTeX; every other `$` is escaped and renders as a dollar sign.
+  Inside kept spans, a bare `%` becomes `\%` (TeX comment) and `\$` becomes
+  `\text{\textdollar}` (remark-math ignores backslash escapes inside math and would
+  close the span at that `$`). `\$`, `$$`, fenced code, and inline code are untouched.
+  GOTCHA: remark-math renders one-line `$$...$$` as INLINE math; only `$$` on their own
+  lines produce display math. Matters constantly for Quant Finance.
 - `scripts/ingest.ts` — CLI ingestion (uses **pdf-parse v2**: `new PDFParse({data}).getText()`,
   not v1's default export). Uses `SUPABASE_SECRET_KEY` (bypasses RLS to write).
   NB: the Voyage account is on the free tier (3 requests/min) — space multiple ingest
@@ -140,10 +160,15 @@ prototype remains useful as a design/behavior reference.
 ## Key conventions (carry into the tutor)
 
 - **No em/en dashes** in AI responses — the prototype's system prompt bans them.
-- **LaTeX math**: inline `$...$`, display `$$...$$` (rendered via `app/Markdown.tsx`).
-- **Currency is NOT math**: prompts tell the model to write `\$100`, and
-  `protectCurrency()` in `app/Markdown.tsx` escapes non-math `$...$` spans as a
-  deterministic backstop.
+- **LaTeX only for real math**: inline `$...$`, display `$$...$$` (rendered via
+  `app/Markdown.tsx`), used only for variables, equations, fractions, and symbols.
+  Plain numbers, prices, and percentages stay as text (`144.29 yen per dollar`, not
+  `$144.29$`).
+- **Currency is NOT math**: always `\$100`, and never a dollar sign inside `$...$`
+  (keep the math unitless and name the currency in the prose).
+- **Percent inside math is `\%`**: a bare `%` is a TeX comment and breaks the span.
+- `protectCurrency()` in `app/Markdown.tsx` is the deterministic backstop for all
+  three rules, since RAG chunks and student text flow through the renderer too.
 - **Hint gate**: "Show me the answer" stays disabled until the student uses 2 hints.
 - **AI policy tiers**: both syllabi use Red/Yellow/Green; include in General Questions context.
 
