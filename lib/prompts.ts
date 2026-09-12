@@ -41,15 +41,33 @@ function quizGrounding(context?: string): string {
     : "";
 }
 
+// Without this, consecutive questions converge on the unit's most canonical
+// problem (e.g. the same cliff projectile with new numbers).
+function quizVariety(recent?: string[]): string {
+  const base =
+    "\n\nVARIETY: Choose one specific subtopic or skill from this unit and build a fresh scenario for it. " +
+    "Do not default to the most textbook-standard problem for the unit.";
+  if (!recent?.length) return base;
+  const list = recent.map((q, i) => `${i + 1}. ${q}`).join("\n");
+  return (
+    base +
+    "\n\nThe student has ALREADY been asked the questions below this session. Your question must test a " +
+    "DIFFERENT subtopic or skill than each of them, with a different scenario, different objects, and a " +
+    "different question structure. Changing only the numbers or wording is a repeat and is not allowed.\n" +
+    `=== PREVIOUS QUESTIONS ===\n${list}\n=== END PREVIOUS QUESTIONS ===`
+  );
+}
+
 export interface QuizPromptArgs {
   course: Course;
   unit: Unit;
   difficulty: Difficulty;
   context?: string; // retrieved syllabus chunks (RAG grounding)
+  recent?: string[]; // questions already asked this practice session, oldest first
 }
 
 /** System prompt that asks the model for ONE multiple-choice question in a strict, parseable format. */
-export function getMcqPrompt({ course, unit, difficulty, context }: QuizPromptArgs): string {
+export function getMcqPrompt({ course, unit, difficulty, context, recent }: QuizPromptArgs): string {
   return (
     `You are an MCQ quiz generator for ${course.title}, unit "${unit.title}" (${unit.desc}).\n\n` +
     `Difficulty: ${QUIZ_DIFFICULTY[difficulty]}\n\n` +
@@ -59,13 +77,14 @@ export function getMcqPrompt({ course, unit, difficulty, context }: QuizPromptAr
     `**A)** [option text]\n**B)** [option text]\n**C)** [option text]\n**D)** [option text]\n\n` +
     `CORRECT: [just the letter A, B, C, or D]\n` +
     `EXPLANATION: [2-4 sentences: why the correct answer is right and briefly why each distractor is wrong]` +
+    quizVariety(recent) +
     QUIZ_FORMATTING +
     quizGrounding(context)
   );
 }
 
 /** System prompt that asks the model for ONE AP-style free-response question worth 10 points total. */
-export function getFrqPrompt({ course, unit, difficulty, context }: QuizPromptArgs): string {
+export function getFrqPrompt({ course, unit, difficulty, context, recent }: QuizPromptArgs): string {
   return (
     `You are an FRQ quiz generator for ${course.title}, unit "${unit.title}" (${unit.desc}).\n\n` +
     `Difficulty: ${QUIZ_DIFFICULTY[difficulty]}\n\n` +
@@ -74,6 +93,7 @@ export function getFrqPrompt({ course, unit, difficulty, context }: QuizPromptAr
     `- Break it into 2-4 parts: **(a) (X pts)** question, **(b) (X pts)** question, etc.\n` +
     `- Point values: 2-4 pts each. Total must sum to exactly 10 pts.\n` +
     `- Do NOT include answers, hints, or a scoring guide.` +
+    quizVariety(recent) +
     QUIZ_FORMATTING +
     quizGrounding(context)
   );

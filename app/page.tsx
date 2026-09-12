@@ -170,6 +170,10 @@ export default function Home() {
   const prefetchRef = useRef<PrefetchedQuestion | null>(null);
   // Bumped by resetQuiz so a response that lands after a unit/mode switch is dropped.
   const quizEpochRef = useRef(0);
+  // Questions shown this practice session (oldest first), sent with each generate
+  // request so the model doesn't serve near-duplicates. A ref, not state, because
+  // the prefetch fires in the same tick the question is recorded.
+  const recentQuestionsRef = useRef<string[]>([]);
 
   // Progress engine (Milestone 3) — local to this device via localStorage.
   const [progress, setProgress] = useState<Progress>(defaultProgress);
@@ -353,6 +357,7 @@ export default function Home() {
   function resetQuiz() {
     quizEpochRef.current += 1;
     prefetchRef.current = null;
+    recentQuestionsRef.current = [];
     setQuizPhase("idle");
     setQuizNum(0);
     setQuizCorrect(0);
@@ -590,6 +595,7 @@ export default function Home() {
         course: q.course,
         unitId: q.unitId,
         difficulty: q.difficulty,
+        recent: recentQuestionsRef.current,
       }),
     });
     const data = await res.json();
@@ -656,6 +662,9 @@ export default function Home() {
         setFrqQuestion(result as string);
       }
       setQuizPhase("active");
+      // Record before prefetching so the next question is generated knowing this one.
+      const shown = typeof result === "string" ? result : result.question;
+      recentQuestionsRef.current = [...recentQuestionsRef.current, shown].slice(-6);
       prefetchQuestion(q);
     } catch (err) {
       if (quizEpochRef.current !== epoch) return;

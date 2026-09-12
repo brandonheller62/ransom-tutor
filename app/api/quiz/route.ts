@@ -38,6 +38,22 @@ interface QuizRequest {
   question?: string; // for "grade"
   answer?: string; // for "grade"
   image?: string; // for "grade" — data URL of a photo of handwritten work
+  recent?: string[]; // for "mcq"/"frq" — questions already asked this session, so we don't repeat them
+}
+
+// Bound what the client can push into the prompt.
+const MAX_RECENT = 6;
+const MAX_RECENT_CHARS = 500;
+
+function sanitizeRecent(recent: unknown): string[] {
+  if (!Array.isArray(recent)) return [];
+  return recent
+    .filter((q): q is string => typeof q === "string" && q.trim().length > 0)
+    .slice(-MAX_RECENT)
+    .map((q) => {
+      const flat = q.replace(/\s+/g, " ").trim();
+      return flat.length > MAX_RECENT_CHARS ? `${flat.slice(0, MAX_RECENT_CHARS)}...` : flat;
+    });
 }
 
 export interface McqData {
@@ -85,6 +101,7 @@ export async function POST(req: Request) {
   }
 
   const { action, course, unitId, difficulty, question, answer, image } = body;
+  const recent = sanitizeRecent(body.recent);
 
   const courseData = classes[course];
   if (!courseData) {
@@ -137,7 +154,7 @@ export async function POST(req: Request) {
 
     if (action === "mcq") {
       const text = await complete(
-        getMcqPrompt({ course: courseData, unit, difficulty, context }),
+        getMcqPrompt({ course: courseData, unit, difficulty, context, recent }),
         [{ role: "user", content: "Generate one question in the exact format." }],
       );
       const data = parseMcq(text);
@@ -153,7 +170,7 @@ export async function POST(req: Request) {
 
     if (action === "frq") {
       const frq = await complete(
-        getFrqPrompt({ course: courseData, unit, difficulty, context }),
+        getFrqPrompt({ course: courseData, unit, difficulty, context, recent }),
         [{ role: "user", content: "Generate one free-response question." }],
       );
       return Response.json({ frq });
