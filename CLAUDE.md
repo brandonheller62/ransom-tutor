@@ -30,7 +30,7 @@ the course syllabi via RAG (retrieval-augmented generation).
 - **Tutor LLM** — dual-provider in `app/api/chat/route.ts`: Anthropic `claude-sonnet-5`
   (preferred) or OpenAI `gpt-5-mini` (fallback), chosen by which API key is present.
   Note the model split: the **chat tutor** runs on `claude-sonnet-5` (fast + cheap),
-  while the **quiz backend** (`lib/llm.ts`) keeps `claude-opus-5` for FRQ grading.
+  while the **quiz backend** (`lib/llm.ts`) keeps `claude-opus-5-5` for FRQ grading.
 - `package.json` has `"type": "module"` (required for the standalone tsx scripts).
 
 ## Current status
@@ -118,9 +118,9 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   streams the reply (Claude `claude-sonnet-5` adaptive thinking, or OpenAI `gpt-5-mini`)
   back as plain text.
 - `lib/llm.ts` — dual-provider, non-streaming `complete()` helper used by the quiz
-  backend (Anthropic `claude-opus-5` preferred, OpenAI fallback; `reasoning_effort:
+  backend (Anthropic `claude-opus-5-5` preferred, OpenAI fallback; `reasoning_effort:
   "low"` on gpt-5). Kept on Opus (not Sonnet 5) because FRQ grading is the most
-  judgment-heavy call in the app. Opus 5 thinks by default and thinking tokens count
+  judgment-heavy call in the app. Opus 5.5 always thinks and thinking tokens count
   against `max_tokens`, so the Anthropic path sets `thinking: {type: "adaptive"}` and
   floors the budget at 4096 (mirroring the gpt-5 reasoning floor).
 - `app/api/quiz/route.ts` — practice-quiz backend (Milestone 2): `mcq` (generate +
