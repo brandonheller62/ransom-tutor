@@ -34,7 +34,7 @@ npm run dev
 Then open **http://localhost:3000**. To stop the server, press **Ctrl + C** in the terminal.
 
 > The app needs a model key + the RAG keys in `.env.local` to respond (see **Secrets**
-> below). It uses Anthropic (`claude-sonnet-5` for the chat tutor, `claude-opus-5-5` for
+> below). It uses Anthropic (`claude-sonnet-5-5` for the chat tutor, `claude-opus-5-5` for
 > quiz grading) when `ANTHROPIC_API_KEY` is set, otherwise falls back to OpenAI
 > (`gpt-5-mini`).
 
@@ -116,7 +116,7 @@ npm run ingest -- "./course-materials/Quantitative-Finance-Syllabus.pdf" --cours
    is generated in the background while the student works the current one, so "Next"
    is instant, and each request carries the questions already asked so the session
    doesn't repeat itself. Models (when
-   `ANTHROPIC_API_KEY` is set): the chat tutor runs on **Anthropic `claude-sonnet-5`**
+   `ANTHROPIC_API_KEY` is set): the chat tutor runs on **Anthropic `claude-sonnet-5-5`**
    (fast and cost-efficient), while quiz generation and FRQ grading (`lib/llm.ts`) run on
    **`claude-opus-5-5`** for the extra judgment grading needs. Without an Anthropic key it
    falls back to **OpenAI `gpt-5-mini`** — chosen automatically per request.

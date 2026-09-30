@@ -11,7 +11,7 @@ Your single source of truth for "what's done" and "what's next." Updated 2026-09
 (MCQ/FRQ + grading), local progress tracking, the polish pass (KaTeX math +
 image attachments), and **RAG grounding on the live site**.
 The model calls run on **Anthropic** (`ANTHROPIC_API_KEY` is set in prod): the
-chat tutor uses **`claude-sonnet-5`** (fast + cost-efficient) and quiz generation +
+chat tutor uses **`claude-sonnet-5-5`** (fast + cost-efficient) and quiz generation +
 FRQ grading use **`claude-opus-5-5`** (`lib/llm.ts`, since 2026-08-20). If the
 Anthropic key is ever removed, both paths fall back to the **OpenAI bridge
 (`gpt-5-mini`)** with no code change.
@@ -45,7 +45,7 @@ logs).
 ## 👉 WHERE THINGS STAND
 
 All five milestones are built, deployed, and verified in production, and the app
-runs on **Anthropic** in prod (`claude-sonnet-5` chat / `claude-opus-5-5` quizzes).
+runs on **Anthropic** in prod (`claude-sonnet-5-5` chat / `claude-opus-5-5` quizzes).
 Recent additions beyond the original milestones: three new courses (2026-08-20),
 mode-switching + mode-aware starter prompts, retry/error handling for transient
 LLM failures, the mobile UI overhaul, and the currency guard in `app/Markdown.tsx`
@@ -65,7 +65,7 @@ The chat tutor is wired end to end and verified responding:
 - ✅ `app/api/chat/route.ts` — receives message + course + unit + mode + difficulty,
   calls `retrieveContext()` for syllabus grounding, builds the prompt via
   `lib/prompts.ts`, and streams the reply. **Dual-provider:** Anthropic
-  (`claude-sonnet-5`) when `ANTHROPIC_API_KEY` is set, otherwise OpenAI
+  (`claude-sonnet-5-5`) when `ANTHROPIC_API_KEY` is set, otherwise OpenAI
   (`gpt-5-mini`).
 - ✅ `app/page.tsx` — Send, Enter, hint buttons, "show answer" gate (2 hints),
   "I solved it", "new problem", Reset, and Export all call the live tutor and
@@ -222,7 +222,7 @@ have shipped and are kept here as a record of what was done and where.
       challenge = skeptical peer). A "Teach the Tutor" mode button is wired into
       `app/page.tsx` (mode-aware intro bubble + export labels); `mode` flows
       through `app/api/chat/route.ts` unchanged. Verified end to end on the
-      Anthropic chat path (now `claude-sonnet-5`).
+      Anthropic chat path (now `claude-sonnet-5-5`).
 - [x] **Mode-aware starter prompts** — DONE (extended to Solution Checker too).
       `getStarterPrompts(mode, unit)` in `lib/courses.ts` returns the chips for
       the chat view: tutor mode keeps the hand-written per-unit questions in

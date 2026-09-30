@@ -7,7 +7,7 @@
  *   3. streams the model's reply back to the browser as plain UTF-8 text.
  *
  * Server-only. Provider is chosen by which key is present:
- *   - ANTHROPIC_API_KEY set  -> Claude (claude-sonnet-5), the preferred path.
+ *   - ANTHROPIC_API_KEY set  -> Claude (claude-sonnet-5-5), the preferred path.
  *   - else OPENAI_API_KEY set -> GPT (gpt-5-mini), a temporary bridge.
  * Pasting an Anthropic key later auto-switches back with no code change.
  * Neither key is ever shipped to the client.
@@ -29,10 +29,10 @@ import {
 
 export const runtime = "nodejs";
 
-// The chat tutor runs on Sonnet 5 (fast + cheap, indistinguishable from Opus
-// for Socratic tutoring). The quiz backend runs Opus 5 for FRQ grading
+// The chat tutor runs on Sonnet 5.5 (fast + cheap, indistinguishable from Opus
+// for Socratic tutoring). The quiz backend runs Opus 5.5 for FRQ grading
 // (see lib/llm.ts) — grading free-response is the most judgment-heavy call.
-const ANTHROPIC_MODEL = "claude-sonnet-5";
+const ANTHROPIC_MODEL = "claude-sonnet-5-5";
 const OPENAI_MODEL = "gpt-5-mini";
 
 // The app's course keys differ from the labels stored in Supabase metadata
@@ -166,6 +166,8 @@ export async function POST(req: Request) {
               model: ANTHROPIC_MODEL,
               max_tokens: 4096,
               thinking: { type: "adaptive" },
+              // Socratic replies are short; low keeps streaming snappy.
+              output_config: { effort: "low" },
               system,
               messages: anthropicTurns,
             });
