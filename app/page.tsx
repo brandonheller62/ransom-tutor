@@ -2,7 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import type { Session } from "@supabase/supabase-js";
 import { Markdown } from "./Markdown";
+import { AuthScreen, ConsentScreen } from "./AuthScreen";
+import Link from "next/link";
+import { LEGAL_VERSION } from "@/lib/legal";
+import { HistoryPanel } from "./HistoryPanel";
+import { DeleteAccountDialog } from "./DeleteAccountDialog";
+import { ThemeToggle } from "./ThemeToggle";
+import { useDialog } from "./useDialog";
+import { authHeaders, supabase } from "@/lib/supabase-browser";
+import {
+  fetchRemoteProgress,
+  loadConversationMessages,
+  saveRemoteProgress,
+  type ConversationSummary,
+} from "@/lib/cloud";
 import {
   classes,
   getStarterPrompts,
@@ -14,6 +29,8 @@ import {
   defaultProgress,
   loadProgress,
   saveProgress,
+  takeLegacyProgress,
+  clearProgress,
   rollWeekIfNeeded,
   getUnitStats,
   computeMastery,
@@ -130,56 +147,44 @@ function Ring({ percent }: { percent: number }) {
   );
 }
 
-const DIALOG_FOCUSABLE =
-  'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
-
-// Dialog behavior a styled overlay doesn't give on its own: focus moves in on
-// open, Tab stays inside, Escape closes, and focus returns to the opener.
-// Don't put autoFocus inside a dialog: React applies it before this effect runs,
-// so the effect would record the dialog's own input as the opener.
-function useDialog(open: boolean, onClose: () => void) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
+// Signed-in gate: the tutor only renders with a session. Keyed by user id so
+// switching accounts on a shared device starts from a clean slate.
+export default function Home() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
-    const node = ref.current;
-    const opener = document.activeElement as HTMLElement | null;
-    const items = () => (node ? [...node.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE)] : []);
-    if (node && !node.contains(document.activeElement)) (items()[0] ?? node).focus();
+    const auth = supabase().auth;
+    auth.getSession().then(({ data }) => setSession(data.session));
+    const { data } = auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => data.subscription.unsubscribe();
+  }, []);
 
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onCloseRef.current();
-      } else if (e.key === "Tab") {
-        const list = items();
-        if (!list.length) return;
-        const first = list[0];
-        const last = list[list.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      if (opener?.isConnected) opener.focus();
-    };
-  }, [open]);
-
-  return ref;
+  if (session === undefined) return <div className="auth-wrap" aria-busy="true" />;
+  if (!session) return <AuthScreen notice={notice} />;
+  const agreedVersion = session.user.user_metadata?.terms_version as string | undefined;
+  if (agreedVersion !== LEGAL_VERSION) {
+    return <ConsentScreen email={session.user.email ?? ""} updated={!!agreedVersion} />;
+  }
+  return (
+    <TutorApp
+      key={session.user.id}
+      userId={session.user.id}
+      email={session.user.email ?? ""}
+      onAccountDeleted={() => setNotice("Your account and everything in it were deleted.")}
+    />
+  );
 }
 
-export default function Home() {
+function TutorApp({
+  userId,
+  email,
+  onAccountDeleted,
+}: {
+  userId: string;
+  email: string;
+  onAccountDeleted: () => void;
+}) {
   const [view, setView] = useState<View>("home");
   const [currentClass, setCurrentClass] = useState<CourseKey | null>(null);
   const [currentUnit, setCurrentUnit] = useState<Unit | null>(null);
@@ -225,33 +230,118 @@ export default function Home() {
   // the prefetch fires in the same tick the question is recorded.
   const recentQuestionsRef = useRef<string[]>([]);
 
-  // Progress engine (Milestone 3) — local to this device via localStorage.
+  // Saved chats: the id of the conversation on screen (null until the first reply
+  // creates it). chatEpochRef is bumped whenever the chat on screen is replaced,
+  // so a reply still streaming into the old chat is dropped.
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const chatEpochRef = useRef(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Progress engine (Milestone 3), synced to the student's account. progressRef
+  // mirrors the latest value for the sign-out flush.
   const [progress, setProgress] = useState<Progress>(defaultProgress);
+  const progressRef = useRef<Progress>(progress);
+  const [progressSynced, setProgressSynced] = useState(false);
   const sessionRef = useRef<StudySession | null>(null);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [goalDraft, setGoalDraft] = useState(3);
   const [recap, setRecap] = useState<RecapData | null>(null);
 
-  // Hydrate from localStorage after mount. This MUST be an effect (not a lazy
-  // initializer): localStorage is unavailable during SSR, so reading it at init
-  // would desync server/client HTML. Setting state once on mount is the correct
-  // pattern here, hence the targeted lint suppression.
+  // Hydrate after mount: this device's copy first (instant), then the account's.
+  // Whichever was changed last wins, and the winner is written back to both.
+  // A device's pre-account progress is handed to the first account that signs in.
   useEffect(() => {
-    const p = loadProgress();
-    rollWeekIfNeeded(p);
-    saveProgress(p);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only localStorage hydration
-    setProgress(p);
-  }, []);
+    let cancelled = false;
+    const local = loadProgress(userId) ?? takeLegacyProgress();
+    if (local) {
+      rollWeekIfNeeded(local);
+      progressRef.current = local;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only localStorage hydration
+      setProgress(local);
+    }
+    fetchRemoteProgress().then(
+      (remote) => {
+        if (cancelled) return;
+        // progressRef, not local: it includes anything practiced while this loaded.
+        const device = local || progressRef.current.updatedAt ? progressRef.current : null;
+        const useDevice = device && (!remote || (device.updatedAt ?? 0) > (remote.updatedAt ?? 0));
+        // Cloned: rollWeekIfNeeded mutates, and device may be the current state object.
+        const p: Progress = structuredClone(useDevice ? device : (remote ?? defaultProgress()));
+        rollWeekIfNeeded(p);
+        saveProgress(p, userId);
+        progressRef.current = p;
+        setProgress(p);
+        setProgressSynced(true); // the effect below pushes p to the account
+      },
+      (err) => {
+        // Offline or Supabase paused: keep working from the device copy. Not
+        // syncing up here avoids overwriting newer progress from another device.
+        console.warn("progress sync unavailable:", err);
+        if (local) saveProgress(local, userId);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // Push changes to the account, debounced so a burst of quiz answers is one write.
+  useEffect(() => {
+    if (!progressSynced) return;
+    const t = window.setTimeout(() => {
+      saveRemoteProgress(userId, progress).catch((err) => console.warn("progress sync failed:", err));
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [progress, progressSynced, userId]);
 
   // Apply a mutation to a fresh copy of progress, persist it, and re-render.
   function mutateProgress(fn: (p: Progress) => void) {
     setProgress((prev) => {
       const next: Progress = JSON.parse(JSON.stringify(prev));
       fn(next);
-      saveProgress(next);
+      next.updatedAt = nowMs();
+      saveProgress(next, userId);
+      progressRef.current = next;
       return next;
     });
+  }
+
+  // Our API routes require a signed-in student. A 401 means the session is gone
+  // (expired, or signed out in another tab), so return to the sign-in screen.
+  async function apiPost(url: string, body: unknown): Promise<Response> {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 401) {
+      showToast("Your session expired. Please sign in again.");
+      void supabase().auth.signOut();
+    }
+    return res;
+  }
+
+  async function signOut() {
+    endSession(false);
+    // Let React apply endSession's progress update, then flush it to the account.
+    await new Promise((r) => window.setTimeout(r, 0));
+    if (progressSynced) {
+      await saveRemoteProgress(userId, progressRef.current).catch((err) =>
+        console.warn("progress sync failed:", err),
+      );
+    }
+    await supabase().auth.signOut();
+  }
+
+  // The account is already gone server-side: skip the progress flush (there's
+  // nothing to save it to) and only clear this device's session and cache.
+  async function finishAccountDeletion() {
+    sessionRef.current = null;
+    setProgressSynced(false);
+    clearProgress(userId);
+    onAccountDeleted();
+    await supabase().auth.signOut({ scope: "local" });
   }
 
   // Begin a study session for the given unit (idempotent for the active unit).
@@ -471,11 +561,54 @@ export default function Home() {
     setCurrentUnit(null);
   }
 
+  // Clears the screen and starts a fresh saved chat on the next message. The old
+  // chat stays in history.
   function resetChat() {
+    chatEpochRef.current += 1;
+    setConversationId(null);
     setMessages([]);
     setHintsUsed(0);
     setIsStreaming(false);
     setPendingImage(null);
+  }
+
+  // Reopen a saved chat exactly as it was left: same unit, mode, and difficulty.
+  // Sets mode directly rather than via handleModeChange, which would clear it.
+  async function resumeConversation(c: ConversationSummary) {
+    const key = c.course as CourseKey;
+    const unit = classes[key]?.units.find((u) => u.id === c.unit_id);
+    if (!unit) {
+      showToast("That chat's unit is no longer in the course.");
+      return;
+    }
+    let saved: ChatMessage[];
+    try {
+      saved = await loadConversationMessages(c.id);
+    } catch {
+      showToast("Could not open that chat. Try again.");
+      return;
+    }
+    endSession(false);
+    resetChat();
+    resetQuiz();
+    setConversationId(c.id);
+    setMessages(saved);
+    setMode(c.mode);
+    setDifficulty(c.difficulty);
+    setInput("");
+    setCurrentClass(key);
+    setCurrentUnit(unit);
+    setUnitView("chat");
+    startSession(key, unit);
+    setView("unit");
+    setHistoryOpen(false);
+    announce(`Opened chat: ${c.title}`);
+  }
+
+  // A deleted chat that's still on screen keeps showing, but its next message
+  // starts a new saved chat.
+  function onChatDeleted(id: string) {
+    if (id === conversationId) setConversationId(null);
   }
 
   // Switching chat modes clears the conversation: a Socratic hint trail makes
@@ -491,27 +624,29 @@ export default function Home() {
   // Send a turn to the tutor and stream the reply into the last assistant bubble.
   async function callTutor(history: ChatMessage[]) {
     if (!currentClass || !currentUnit) return;
+    const epoch = chatEpochRef.current;
+    const current = () => chatEpochRef.current === epoch; // false once the chat is replaced
     setIsStreaming(true);
     // Add an empty assistant message we'll fill as tokens stream in.
     setMessages([...history, { role: "assistant", content: "" }]);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: history,
-          course: currentClass,
-          unitId: currentUnit.id,
-          mode,
-          difficulty,
-        }),
+      const res = await apiPost("/api/chat", {
+        messages: history,
+        course: currentClass,
+        unitId: currentUnit.id,
+        mode,
+        difficulty,
+        conversationId,
       });
 
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? `Request failed (${res.status})`);
       }
+      // The first reply of a new chat carries the id the server saved it under.
+      const savedId = res.headers.get("X-Conversation-Id");
+      if (savedId && current()) setConversationId(savedId);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -520,9 +655,10 @@ export default function Home() {
         const { done, value } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        setMessages([...history, { role: "assistant", content: acc }]);
+        if (current()) setMessages([...history, { role: "assistant", content: acc }]);
       }
     } catch (err) {
+      if (!current()) return;
       const msg = err instanceof Error ? err.message : "Something went wrong.";
       setMessages([
         ...history,
@@ -530,7 +666,7 @@ export default function Home() {
       ]);
       showToast(msg);
     } finally {
-      setIsStreaming(false);
+      if (current()) setIsStreaming(false);
     }
   }
 
@@ -664,16 +800,12 @@ export default function Home() {
 
   // Generate one question. Resolves to the MCQ object or the FRQ prompt text.
   async function requestQuestion(q: QuestionRequest): Promise<McqData | string> {
-    const res = await fetch("/api/quiz", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: q.mode,
-        course: q.course,
-        unitId: q.unitId,
-        difficulty: q.difficulty,
-        recent: recentQuestionsRef.current,
-      }),
+    const res = await apiPost("/api/quiz", {
+      action: q.mode,
+      course: q.course,
+      unitId: q.unitId,
+      difficulty: q.difficulty,
+      recent: recentQuestionsRef.current,
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
@@ -773,18 +905,14 @@ export default function Home() {
     setQuizPhase("grading");
     setQuizError(null);
     try {
-      const res = await fetch("/api/quiz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "grade",
-          course: currentClass,
-          unitId: currentUnit.id,
-          difficulty: practiceDiff,
-          question: frqQuestion,
-          answer: frqAnswer,
-          image: frqImage || undefined,
-        }),
+      const res = await apiPost("/api/quiz", {
+        action: "grade",
+        course: currentClass,
+        unitId: currentUnit.id,
+        difficulty: practiceDiff,
+        question: frqQuestion,
+        answer: frqAnswer,
+        image: frqImage || undefined,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
@@ -860,6 +988,27 @@ export default function Home() {
               </>
             )}
           </nav>
+          <div className="header-actions">
+            <button
+              type="button"
+              className="header-text-btn"
+              onClick={() => setHistoryOpen(true)}
+              aria-haspopup="dialog"
+              aria-label="Your chats"
+            >
+              <span aria-hidden="true">🕘</span>
+              <span className="header-btn-label">Chats</span>
+            </button>
+            <ThemeToggle />
+            <button
+              type="button"
+              className="header-text-btn"
+              onClick={() => void signOut()}
+              title={`Signed in as ${email}`}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1123,7 +1272,7 @@ export default function Home() {
                     Export
                   </button>
                   <button className="reset-btn" onClick={resetChat}>
-                    Reset
+                    New chat
                   </button>
                 </div>
               </div>
@@ -1530,6 +1679,32 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <footer className="app-footer">
+        <Link href="/privacy">Privacy</Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/terms">Terms</Link>
+        <span aria-hidden="true">·</span>
+        <button type="button" className="footer-link-btn" onClick={() => setDeleteOpen(true)} aria-haspopup="dialog">
+          Delete account
+        </button>
+      </footer>
+
+      <DeleteAccountDialog
+        open={deleteOpen}
+        email={email}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => void finishAccountDeletion()}
+      />
+
+      <HistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        email={email}
+        activeId={conversationId}
+        onOpenChat={resumeConversation}
+        onDeleted={onChatDeleted}
+      />
 
       {/* Weekly-goal editor (Milestone 3). */}
       <AnimatePresence>

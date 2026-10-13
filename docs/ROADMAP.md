@@ -1,6 +1,6 @@
 # Socratic Tutor — Roadmap
 
-Your single source of truth for "what's done" and "what's next." Updated 2026-09-12.
+Your single source of truth for "what's done" and "what's next." Updated 2026-10-12.
 
 ---
 
@@ -175,32 +175,44 @@ have shipped and are kept here as a record of what was done and where.
 - [ ] **Other advanced physics teacher's syllabus** — get that teacher's
       syllabus and ingest it as RAG course material. (Remember: ingestion is
       insert-only — to replace, delete old rows first; see Housekeeping below.)
-- [ ] **User accounts / login (real database)** — replace the anonymous
-      single-device model with per-user accounts so progress and history follow
-      the student across devices. Supabase Auth is the natural fit (the project
-      already runs Supabase for the vector store): email magic-link or Google
-      sign-in, a `profiles` table keyed by `auth.uid()`, and RLS policies so a
-      row is only readable by its owner. Needs a session provider in
-      `app/layout.tsx`, a signed-in/signed-out header state in `app/page.tsx`,
-      and a migration path for the existing `socratic_progress_v1` localStorage
-      blob (on first login, upload the local progress, then treat the server as
-      the source of truth). Note this supersedes the Milestone 3 decision to keep
-      progress local — keep localStorage as the offline/logged-out fallback.
-- [ ] **Persist chats across sessions** — save every chat to the database instead
-      of losing it on refresh. Tables: `conversations` (id, user_id, course,
-      unit, mode, difficulty, title, created_at, updated_at) and `messages`
-      (id, conversation_id, role, content, image_url, created_at), both under
-      RLS. Write on each completed turn in `app/api/chat/route.ts` (append the
-      user message before streaming, the assistant message when the stream
-      closes) so a dropped connection doesn't lose the exchange. Depends on user
-      accounts above for the `user_id`.
-- [ ] **Resume any past chat** — a history panel listing the student's past
-      conversations (auto-titled from the first user message, grouped by course
-      and unit, most recent first) that loads the full message thread back into
-      `app/page.tsx` and lets the tutor continue with the prior context intact.
-      Include rename and delete, and make sure resuming restores the mode and
-      difficulty the chat was started in (mode switching currently clears the
-      chat via `handleModeChange` — resuming must not trip that).
+- [x] **User accounts (required login)**: DONE (2026-10-12). Email + password via
+      Supabase Auth; the app shows only `app/AuthScreen.tsx` until a session exists
+      (`Home` in `app/page.tsx` gates on `onAuthStateChange` and keys `TutorApp` by user
+      id). `/api/chat` and `/api/quiz` reject requests without a valid access token
+      (`lib/auth-server.ts` `requireUser()`, which also returns a Supabase client acting
+      as the student, so RLS covers every server write). Progress syncs to the
+      `progress` table (one JSON row per student); localStorage keeps a per-account
+      copy (`socratic_progress_v1:<userId>`) and `updatedAt` picks the newer side. A
+      device's old pre-account progress goes to the first account that signs in there.
+      **Needs a dashboard setting:** Supabase → Authentication → Sign In / Providers →
+      Email → turn OFF "Confirm email" (the built-in mailer only reaches project team
+      members, so students would never get the email).
+      **Delete account** (footer) opens `app/DeleteAccountDialog.tsx`, an alertdialog that
+      stays locked until the student types DELETE. `deleteMyAccount()` in `lib/cloud.ts`
+      removes their Storage images, then calls the `delete_my_account()` SQL function
+      (security definer, `auth.uid()` only, no execute for anon), which deletes the auth
+      user and cascades to every table. No secret key needed on the server. No password reset for the same
+      reason; add custom SMTP (e.g. Resend) if that becomes needed.
+- [x] **Privacy Policy + Terms of Use**: DONE (2026-10-12). `/privacy` and `/terms`
+      (`app/privacy/page.tsx`, `app/terms/page.tsx`, shared frame `app/LegalPage.tsx`).
+      Sign-up requires an "I'm 13+ and agree" checkbox and stores `terms_version` +
+      `terms_accepted_at` in the account's `user_metadata`. Any signed-in account whose
+      `terms_version` isn't the current `LEGAL_VERSION` (`lib/legal.ts`) sees
+      `ConsentScreen` before the app, so bumping the version re-asks everyone. Footer
+      links in the app and on the sign-in screen. **Not legal advice; have the school
+      or a parent/advisor review before launch.** Keep the policy in step with the code:
+      new data, providers, or analytics mean an edit + version bump.
+- [x] **Persist chats across sessions**: DONE (2026-10-12). Tables `conversations`
+      and `messages` (owner-only RLS) plus a private `chat-images` Storage bucket
+      (`<userId>/<conversationId>/<uuid>.jpg`). The chat route creates the conversation
+      on the first turn (id returned in `X-Conversation-Id`), saves the new user message
+      while the reply streams, and saves the reply before closing the stream.
+      "New chat" (was Reset) and mode switches start a fresh saved chat.
+- [x] **Resume any past chat**: DONE (2026-10-12). "Chats" in the header opens
+      `app/HistoryPanel.tsx`: chats grouped by course + unit, newest first, with
+      rename and delete (delete also removes stored images). Opening one restores
+      unit, mode, difficulty, and messages (images re-downloaded as data URLs so the
+      model sees them again) without going through `handleModeChange`.
 - [x] **Add more classes** — DONE 2026-08-20 for three courses: **Quantitative
       Finance & AI** (7 units, from the "Story" PDF's unit arc), **Digital
       Narrative** (2 units), and **Advanced Machine Learning** (6 units). Each
@@ -291,10 +303,12 @@ have shipped and are kept here as a record of what was done and where.
       Browser-verified: tab order and dialog focus behavior. Not yet verified in a
       live browser: the unit screen (tabs, toggles), phone touch sizes, reduced
       motion. Worth a quick manual check.
-- [ ] **Dark mode** (from the audit, deliberately not done): tokens are ready for
-      it, but it changes the look for everyone on a dark-mode device, so it needs a
-      design decision first.
-- [ ] **Lint**: `lib/retrieve.ts:45` has a pre-existing `no-explicit-any` error.
+- [x] **Dark mode**: DONE (2026-10-12). Follows the device setting, with a ☾/☀
+      toggle in the header and on the sign-in screen (choice saved per browser). A
+      script in `app/layout.tsx` sets `data-theme` before first paint; the dark palette
+      is `:root[data-theme="dark"]` in `app/globals.css`.
+- [x] **Lint**: DONE (2026-10-12). `lib/retrieve.ts` and `scripts/ingest.ts` no
+      longer use `any`; `npx eslint .` is clean.
 - [x] **Fix mobile UI** — DONE (2026-07-14). Mobile pass at ≤640px: control
       strips became horizontally scrollable single rows, header collapses to
       logo + truncating breadcrumbs, chat height uses `dvh` (mobile Safari URL

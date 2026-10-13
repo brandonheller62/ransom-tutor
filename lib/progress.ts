@@ -1,15 +1,21 @@
 /**
  * lib/progress.ts
  *
- * Local-only progress engine (Milestone 3). All state lives in the browser's
- * localStorage on the student's device — no login, no server. Ported from the
- * prototype's progress system (streaks, weekly goals, per-unit mastery).
+ * Progress engine (Milestone 3): streaks, weekly goals, per-unit mastery,
+ * ported from the prototype. The student's account is the source of truth
+ * (the `progress` table, synced by app/page.tsx via lib/cloud.ts); localStorage
+ * keeps a per-account copy so the screen fills instantly and nothing is lost
+ * if a sync doesn't finish before the tab closes. `updatedAt` decides which
+ * copy is newer.
  *
  * Pure helpers + load/save here; session tracking + React wiring live in
  * app/page.tsx. Safe to import in client code only (touches localStorage).
  */
 
-const PROGRESS_KEY = "socratic_progress_v1";
+// Before accounts, progress lived under this one key per browser. The first
+// account to sign in on a device inherits it (takeLegacyProgress).
+const LEGACY_KEY = "socratic_progress_v1";
+const progressKey = (userId: string) => `${LEGACY_KEY}:${userId}`;
 
 export interface UnitStats {
   problemsAttempted: number;
@@ -32,6 +38,7 @@ export interface Progress {
   };
   units: Record<string, UnitStats>; // key = `${courseKey}_${unitId}`
   totalProblems: number;
+  updatedAt?: number; // epoch ms of the last change; absent on pre-account saves
 }
 
 export function defaultProgress(): Progress {
@@ -53,28 +60,56 @@ export function defaultUnitStats(): UnitStats {
   };
 }
 
-export function loadProgress(): Progress {
-  if (typeof window === "undefined") return defaultProgress();
-  try {
-    const raw = window.localStorage.getItem(PROGRESS_KEY);
-    if (raw) {
-      // Merge over defaults so older/partial saves don't crash newer fields.
-      const parsed = JSON.parse(raw) as Partial<Progress>;
-      return { ...defaultProgress(), ...parsed };
-    }
-  } catch {
-    /* corrupt or unavailable storage — fall back to a fresh slate */
-  }
-  return defaultProgress();
+/** Merge over defaults so older/partial saves don't crash newer fields. */
+export function normalizeProgress(raw: unknown): Progress {
+  return { ...defaultProgress(), ...(raw as Partial<Progress>) };
 }
 
-export function saveProgress(p: Progress): void {
+function readKey(key: string): Progress | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw) return normalizeProgress(JSON.parse(raw));
+  } catch {
+    /* corrupt or unavailable storage: treat as missing */
+  }
+  return null;
+}
+
+/** This account's copy on this device, or null if there isn't one. */
+export function loadProgress(userId: string): Progress | null {
+  return readKey(progressKey(userId));
+}
+
+export function saveProgress(p: Progress, userId: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+    window.localStorage.setItem(progressKey(userId), JSON.stringify(p));
   } catch {
-    /* storage full or blocked — progress just won't persist this session */
+    /* storage full or blocked: the account copy still syncs */
   }
+}
+
+/** Forget this account's copy on this device (after the account is deleted). */
+export function clearProgress(userId: string): void {
+  try {
+    window.localStorage.removeItem(progressKey(userId));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Pre-account progress on this device, removed once read so only one account inherits it. */
+export function takeLegacyProgress(): Progress | null {
+  const p = readKey(LEGACY_KEY);
+  if (p) {
+    try {
+      window.localStorage.removeItem(LEGACY_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  return p;
 }
 
 /** Epoch ms of the most recent Monday at 00:00 (local time). */

@@ -46,8 +46,9 @@ both paths run on Claude; the OpenAI bridge is the no-code-change fallback. Mile
 `lib/llm.ts` + the interactive quiz UI in `app/page.tsx`. Milestone 3 (progress) is
 **done** too: `lib/progress.ts` is a local-only (browser `localStorage`, key
 `socratic_progress_v1`) engine for streaks, weekly goals, and per-unit mastery, wired
-through `app/page.tsx` (rings, stats bar, goal + recap modals). No login / no Supabase
-for progress. Milestone 4 (polish) is **done**: KaTeX math rendering via
+through `app/page.tsx` (rings, stats bar, goal + recap modals). Since 2026-10-12 login
+is REQUIRED (email + password, Supabase Auth) and progress syncs to the account; saved
+chats + chat history + dark mode shipped the same day (see Accounts below). Milestone 4 (polish) is **done**: KaTeX math rendering via
 `app/Markdown.tsx` (react-markdown + remark-math + rehype-katex; KaTeX CSS in
 `app/layout.tsx`) and image attachments (📎 → base64 data URL → vision block) in BOTH the chat tutor
 (`app/api/chat/route.ts`) and the FRQ grader (`app/api/quiz/route.ts` via `lib/llm.ts`),
@@ -131,9 +132,10 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   choice D. Any missing choice still returns null, so the route 422s and logs the raw
   text. `sanitizeRecent()` caps the client's `recent` list at 6 entries of 500 chars.
   The prototype's `parseMCQQuizResponse()` mirrors the same parsing rules.
-- `lib/progress.ts` — local-only progress engine (Milestone 3): `Progress` type,
-  `computeMastery`, streak/week helpers, `loadProgress`/`saveProgress` (localStorage,
-  SSR-guarded). Session tracking + modals are wired in `app/page.tsx`.
+- `lib/progress.ts` — progress engine (Milestone 3): `Progress` type,
+  `computeMastery`, streak/week helpers, per-account `loadProgress(userId)`/
+  `saveProgress(p, userId)` (localStorage cache, SSR-guarded) and `takeLegacyProgress()`.
+  Account sync lives in `lib/cloud.ts`; session tracking + modals in `app/page.tsx`.
 - `app/Markdown.tsx` — `<Markdown>` component (Milestone 4): renders tutor/quiz text as
   Markdown + LaTeX (react-markdown + remark-math + rehype-katex), strips em/en dashes.
   Use `inline` for inline contexts (e.g. MCQ choices). KaTeX CSS is imported in layout.
@@ -158,6 +160,39 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
 - `scripts/retrieve-test.ts` — manual retrieval test; takes the question and an optional
   Supabase course label (`physics` default) as args; dynamically imports `retrieve.ts`
   after loading `.env.local` (static ESM imports hoist above dotenv).
+
+## Accounts, saved chats, dark mode (2026-10-12)
+
+- `app/page.tsx` default export `Home` is the auth gate: no session → `app/AuthScreen.tsx`;
+  session → `TutorApp` (the old `Home`), keyed by user id. API calls go through
+  `apiPost()`, which adds the bearer token and signs out on a 401.
+- `lib/supabase-browser.ts` — the browser client + `authHeaders()`.
+  `lib/auth-server.ts` — `requireUser(req)` verifies the token with `getClaims` and
+  returns a client acting as the student (publishable key + their JWT), so RLS applies.
+- Tables (all owner-only RLS): `progress` (user_id PK, data jsonb), `conversations`,
+  `messages` (role, content, image_path); private Storage bucket `chat-images`, paths
+  `<userId>/<conversationId>/<uuid>.<ext>`. Server writes: `lib/chat-store.ts`; browser
+  reads/rename/delete + progress sync: `lib/cloud.ts`.
+- Chat route saves turns best-effort and never blocks tutoring; the first turn's
+  conversation id comes back in `X-Conversation-Id`. `chatEpochRef` drops a reply still
+  streaming into a chat that was replaced (New chat, mode switch, resume).
+- Progress: per-account localStorage cache `socratic_progress_v1:<userId>`; `updatedAt`
+  decides device vs. account; the unkeyed legacy blob goes to the first account on a device.
+- Dark mode: `data-theme` on `<html>` set pre-paint by the script in `app/layout.tsx`
+  (saved choice or device setting); `app/ThemeToggle.tsx`; palette in `app/globals.css`.
+  Text on solid `--accent` fills uses `--on-accent` (white in light, near-black in dark).
+- Account deletion: footer "Delete account" → `app/DeleteAccountDialog.tsx` (type DELETE
+  to unlock) → `deleteMyAccount()` in `lib/cloud.ts`: removes Storage images first (SQL
+  can't delete Storage objects), then RPC `delete_my_account()` (security definer, deletes
+  `auth.uid()` only) cascades everything else. Then local sign-out + `clearProgress()`.
+- `useDialog` now lives in `app/useDialog.ts` (shared by the modals and the history drawer).
+- Legal: `/privacy` + `/terms` describe exactly what the app stores and which providers
+  receive data (Supabase, Vercel, Anthropic, OpenAI fallback, Voyage). Consent is stored
+  in `user_metadata.terms_version`; `Home` shows `ConsentScreen` until it equals
+  `LEGAL_VERSION` in `lib/legal.ts`. If you add data collection, a provider, or
+  analytics, update `app/privacy/page.tsx` and bump `LEGAL_VERSION`.
+- Supabase setting required: Auth → Email → "Confirm email" OFF (default mailer can't
+  reach students).
 
 ## The prototype (historical reference)
 

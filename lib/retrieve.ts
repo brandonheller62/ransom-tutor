@@ -42,7 +42,7 @@ function getSupabase(): SupabaseClient {
 export interface RetrievedChunk {
   id: number;
   content: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   similarity: number;
 }
 

@@ -156,11 +156,9 @@ async function embedBatch(texts: string[]): Promise<number[][]> {
     throw new Error(`Voyage API error ${res.status}: ${body}`);
   }
 
-  const json = await res.json();
   // Voyage returns { data: [{ embedding, index }, ...] }; sort by index to be safe.
-  return json.data
-    .sort((a: any, b: any) => a.index - b.index)
-    .map((d: any) => d.embedding as number[]);
+  const json = (await res.json()) as { data: { embedding: number[]; index: number }[] };
+  return json.data.sort((a, b) => a.index - b.index).map((d) => d.embedding);
 }
 
 // ---------- Main ----------

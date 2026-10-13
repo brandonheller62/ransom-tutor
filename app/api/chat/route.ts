@@ -11,6 +11,12 @@
  *   - else OPENAI_API_KEY set -> GPT (gpt-5-mini), a temporary bridge.
  * Pasting an Anthropic key later auto-switches back with no code change.
  * Neither key is ever shipped to the client.
+ *
+ * Requires a signed-in student (lib/auth-server.ts). Each turn is saved to the
+ * student's chat history (lib/chat-store.ts): the first turn creates the
+ * conversation and its id goes back in the X-Conversation-Id header; the new
+ * user message is saved while the reply streams, and the reply is saved just
+ * before the stream closes. Saving is best-effort and never blocks tutoring.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -19,6 +25,8 @@ import { classes, type CourseKey } from "@/lib/courses";
 import { retrieveContext } from "@/lib/retrieve";
 import { getSystemPrompt, type Difficulty, type Mode } from "@/lib/prompts";
 import { parseDataUrl } from "@/lib/image";
+import { requireUser } from "@/lib/auth-server";
+import { chatTitle, createConversation, saveMessage, touchConversation } from "@/lib/chat-store";
 import {
   describeLlmError,
   sleep,
@@ -57,9 +65,17 @@ interface ChatRequest {
   unitId: string;
   mode: Mode;
   difficulty: Difficulty;
+  conversationId?: string | null; // omitted on the first turn of a new chat
 }
 
+const MODES: Mode[] = ["tutor", "checker", "teach"];
+const DIFFICULTIES: Difficulty[] = ["warmup", "standard", "challenge"];
+
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
+  const { id: userId, db } = auth;
+
   const provider = process.env.ANTHROPIC_API_KEY
     ? "anthropic"
     : process.env.OPENAI_API_KEY
@@ -94,20 +110,64 @@ export async function POST(req: Request) {
   if (!messages?.length) {
     return Response.json({ error: "No messages provided." }, { status: 400 });
   }
+  if (!MODES.includes(mode) || !DIFFICULTIES.includes(difficulty)) {
+    return Response.json({ error: "Unknown mode or difficulty." }, { status: 400 });
+  }
 
   // Retrieve grounding context from the student's latest message.
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
-  let context = "";
-  if (lastUser?.content) {
+  async function getContext(): Promise<string> {
+    if (!lastUser?.content) return "";
     try {
-      const chunks = await retrieveContext(
-        lastUser.content,
-        RETRIEVAL_COURSE[course],
-      );
-      context = chunks.map((c) => c.content).join("\n\n---\n\n");
+      const chunks = await retrieveContext(lastUser.content, RETRIEVAL_COURSE[course]);
+      return chunks.map((c) => c.content).join("\n\n---\n\n");
     } catch (err) {
       // Retrieval is best-effort grounding; if it fails, tutor still works.
       console.error("retrieveContext failed:", err);
+      return "";
+    }
+  }
+
+  // First turn of a new chat: create the conversation alongside retrieval.
+  async function getConversationId(): Promise<string | null> {
+    if (body.conversationId) return body.conversationId;
+    const first = messages.find((m) => m.role === "user");
+    try {
+      return await createConversation(db, {
+        course,
+        unitId,
+        mode,
+        difficulty,
+        title: chatTitle(first?.content ?? "", !!first?.image),
+      });
+    } catch (err) {
+      console.error("chat history:", err);
+      return null;
+    }
+  }
+
+  const [context, conversationId] = await Promise.all([getContext(), getConversationId()]);
+
+  // The client resends the whole history each turn; only the newest message is new.
+  const newest = messages[messages.length - 1];
+  const userSaved =
+    conversationId && newest.role === "user"
+      ? saveMessage(db, userId, conversationId, newest).catch((err) =>
+          console.error("chat history:", err),
+        )
+      : Promise.resolve();
+
+  // Runs before the stream closes (not after), so serverless shutdown can't cut it off.
+  async function saveReply(text: string) {
+    if (!conversationId) return;
+    await userSaved; // keep turn order: user message first
+    try {
+      if (text.trim()) {
+        await saveMessage(db, userId, conversationId, { role: "assistant", content: text });
+      }
+      await touchConversation(db, conversationId, difficulty);
+    } catch (err) {
+      console.error("chat history:", err);
     }
   }
 
@@ -151,8 +211,10 @@ export async function POST(req: Request) {
       // A failed attempt may only be retried while the reply is still empty;
       // once tokens have reached the browser a retry would duplicate them.
       let emitted = false;
+      let reply = ""; // model text only, without any error copy, for chat history
       const emit = (text: string) => {
         emitted = true;
+        reply += text;
         controller.enqueue(encoder.encode(text));
       };
 
@@ -189,6 +251,7 @@ export async function POST(req: Request) {
               if (delta) emit(delta);
             }
           }
+          await saveReply(reply);
           controller.close();
           return;
         } catch (err) {
@@ -202,6 +265,7 @@ export async function POST(req: Request) {
           // friendly copy instead and keep the detail in the server log.
           const msg = info.retryable ? OVERLOADED_LLM_MESSAGE : GENERIC_LLM_MESSAGE;
           controller.enqueue(encoder.encode(emitted ? `\n\n${msg}` : msg));
+          await saveReply(reply);
           controller.close();
           return;
         }
@@ -213,6 +277,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
+      ...(conversationId ? { "X-Conversation-Id": conversationId } : {}),
     },
   });
 }

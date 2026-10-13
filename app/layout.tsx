@@ -15,13 +15,29 @@ export const metadata: Metadata = {
     "A guided, Socratic tutor for Ransom Everglades courses: Advanced Physics, Applied Data Science, Quantitative Finance & AI, Digital Narrative, and Advanced Machine Learning.",
 };
 
+// Runs before first paint so a dark-mode device never flashes the light theme.
+// Saved choice (ThemeToggle writes "theme" to localStorage) wins; otherwise follow
+// the device, and keep following it live until the student picks one.
+const themeScript = `(() => {
+  const root = document.documentElement;
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const saved = () => { try { return localStorage.getItem("theme"); } catch { return null; } };
+  const apply = () => { root.dataset.theme = saved() || (mq.matches ? "dark" : "light"); };
+  apply();
+  mq.addEventListener("change", () => { if (!saved()) apply(); });
+})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
+    // suppressHydrationWarning: data-theme is set by themeScript before React hydrates.
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );

@@ -13,6 +13,7 @@
 import { classes, type CourseKey } from "@/lib/courses";
 import { retrieveContext } from "@/lib/retrieve";
 import { complete } from "@/lib/llm";
+import { requireUser } from "@/lib/auth-server";
 import {
   getMcqPrompt,
   getFrqPrompt,
@@ -103,6 +104,9 @@ function parseMcq(text: string): McqData | null {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (auth instanceof Response) return auth;
+
   let body: QuizRequest;
   try {
     body = (await req.json()) as QuizRequest;
