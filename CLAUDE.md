@@ -195,8 +195,8 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   in `user_metadata.terms_version`; `Home` shows `ConsentScreen` until it equals
   `LEGAL_VERSION` in `lib/legal.ts`. If you add data collection, a provider, or
   analytics, update `app/privacy/page.tsx` and bump `LEGAL_VERSION`.
-- Supabase setting required: Auth → Email → "Confirm email" OFF (default mailer can't
-  reach students).
+- Supabase setting: Auth → Email → "Confirm email" is OFF (set 2026-10-12). Keep it off;
+  the default mailer can't reach students, so sign-up would never complete.
 
 ## The prototype (historical reference)
 

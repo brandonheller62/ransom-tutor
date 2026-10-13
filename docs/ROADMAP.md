@@ -14,9 +14,9 @@ image attachments), and **RAG grounding on the live site**.
 **Accounts shipped 2026-10-12** (commit `c0d20ff`): required email + password
 sign-in, progress synced to the account, every chat saved and resumable from a
 **Chats** panel, dark mode, Privacy Policy + Terms of Use with recorded consent,
-and self-serve account deletion. **One open setting:** Supabase → Authentication →
-Sign In / Providers → Email → turn OFF "Confirm email", or new students can't
-finish signing up.
+and self-serve account deletion. Supabase "Confirm email" is OFF (done
+2026-10-12; verified sign-up returns a session immediately). Keep it off: the
+built-in mailer can't reach students.
 The model calls run on **Anthropic** (`ANTHROPIC_API_KEY` is set in prod): the
 chat tutor uses **`claude-sonnet-5-5`** (fast + cost-efficient) and quiz generation +
 FRQ grading use **`claude-opus-5-5`** (`lib/llm.ts`, since 2026-08-20). If the
@@ -197,8 +197,8 @@ have shipped and are kept here as a record of what was done and where.
       `progress` table (one JSON row per student); localStorage keeps a per-account
       copy (`socratic_progress_v1:<userId>`) and `updatedAt` picks the newer side. A
       device's old pre-account progress goes to the first account that signs in there.
-      **Needs a dashboard setting:** Supabase → Authentication → Sign In / Providers →
-      Email → turn OFF "Confirm email" (the built-in mailer only reaches project team
+      **Dashboard setting (done 2026-10-12):** Supabase → Authentication → Sign In /
+      Providers → Email → "Confirm email" is OFF (the built-in mailer only reaches project team
       members, so students would never get the email).
       **Delete account** (footer) opens `app/DeleteAccountDialog.tsx`, an alertdialog that
       stays locked until the student types DELETE. `deleteMyAccount()` in `lib/cloud.ts`
@@ -344,8 +344,7 @@ have shipped and are kept here as a record of what was done and where.
 ---
 
 ## 🧹 Housekeeping (do when convenient)
-- [ ] **Turn off "Confirm email"** in Supabase Auth (see "You are here"). Until then
-      sign-ups create an account but never get a session.
+- [x] **Turn off "Confirm email"** in Supabase Auth: DONE 2026-10-12, verified.
 - [ ] **Review the legal pages** with the school or a fellowship advisor, and decide
       whether `LEGAL_CONTACT_EMAIL` in `lib/legal.ts` should be a separate address
       (it's shown publicly on `/privacy` and `/terms`).

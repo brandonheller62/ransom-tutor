@@ -155,8 +155,8 @@ Variables for production.
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | app + API | browser-safe; RLS protects the data |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | `scripts/ingest.ts` only | bypasses RLS; not needed on Vercel |
 
-Supabase setting: **Authentication → Sign In / Providers → Email → "Confirm email" must
-be OFF.** Supabase's built-in mailer only delivers to project team members, so with it
+Supabase setting: **Authentication → Sign In / Providers → Email → "Confirm email" is
+OFF and must stay off.** Supabase's built-in mailer only delivers to project team members, so with it
 on, students could never confirm their accounts.
 
 ## Deployment
