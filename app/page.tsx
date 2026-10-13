@@ -3,6 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
+import {
+  ArrowRight,
+  Atom,
+  BookOpen,
+  BrainCircuit,
+  ChartScatter,
+  Feather,
+  Flame,
+  History,
+  Lock,
+  Pencil,
+  Target,
+  TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 import { Markdown } from "./Markdown";
 import { AuthScreen, ConsentScreen } from "./AuthScreen";
 import Link from "next/link";
@@ -57,6 +72,15 @@ const gridVariants = {
 const cardVariants = {
   initial: { opacity: 0, y: 14 },
   animate: { opacity: 1, y: 0, transition: pageTransition },
+};
+
+// Line icon per course; the tile color comes from the matching .hue-<key> class.
+const COURSE_ICON: Record<CourseKey, LucideIcon> = {
+  physics: Atom,
+  datascience: ChartScatter,
+  quantfinance: TrendingUp,
+  digitalnarrative: Feather,
+  advancedml: BrainCircuit,
 };
 
 type View = "home" | "class" | "unit";
@@ -943,16 +967,18 @@ function TutorApp({
 
   const onHome = view === "home";
   const onClass = view === "class";
+  // The chat screen is locked to the viewport (only the message list scrolls).
+  const chatLocked = view === "unit" && unitView === "chat";
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="container">
+    <div className={"app-shell" + (chatLocked ? " chat-locked" : "")}>
       {/* Always mounted so screen readers pick up each new message. */}
       <div className="sr-only" role="status" aria-live="polite">
         {announcement}
       </div>
 
-      <header>
+      <header className="site-header">
         <div className="header-inner">
           <button type="button" className="logo" onClick={goHome} aria-label="Ransom Tutor, go home">
             <span className="logo-mark" aria-hidden="true">
@@ -975,7 +1001,11 @@ function TutorApp({
                 {onClass ? (
                   <span aria-current="page">{course.title}</span>
                 ) : (
-                  <button type="button" className="crumb" onClick={() => openClass(currentClass!)}>
+                  <button
+                    type="button"
+                    className="crumb"
+                    onClick={() => (view === "unit" ? goBackToClass() : openClass(currentClass!))}
+                  >
                     {course.title}
                   </button>
                 )}
@@ -996,7 +1026,7 @@ function TutorApp({
               aria-haspopup="dialog"
               aria-label="Your chats"
             >
-              <span aria-hidden="true">🕘</span>
+              <History size={16} strokeWidth={2} aria-hidden="true" />
               <span className="header-btn-label">Chats</span>
             </button>
             <ThemeToggle />
@@ -1012,6 +1042,7 @@ function TutorApp({
         </div>
       </header>
 
+      <div className="container">
       <AnimatePresence mode="wait">
       {/* ===================== HOME ===================== */}
       {view === "home" && (
@@ -1033,11 +1064,10 @@ function TutorApp({
           </div>
 
           <div className="stats-bar">
-            <div
-              className="stat"
-              title={`Longest streak: ${progress.streak.longestStreak} days`}
-            >
-              <div className="stat-icon flame">🔥</div>
+            <div className="stat" title={`Longest streak: ${progress.streak.longestStreak} days`}>
+              <div className="stat-icon" aria-hidden="true">
+                <Flame size={20} strokeWidth={2} />
+              </div>
               <div className="stat-body">
                 <div className="stat-value">
                   {progress.streak.currentStreak}{" "}
@@ -1046,50 +1076,49 @@ function TutorApp({
                 <div className="stat-label">Streak</div>
               </div>
             </div>
-            <div className="stat-divider" />
-            <div className="stat" style={{ flex: 1, minWidth: 200 }}>
-              <div className="stat-icon">🎯</div>
-              <div className="stat-body" style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <div className="stat">
+              <div className="stat-icon" aria-hidden="true">
+                <Target size={20} strokeWidth={2} />
+              </div>
+              <div className="stat-body">
+                <div className="stat-row">
                   <span className="stat-value">
-                    {progress.weeklyGoal.sessionsThisWeek} / {progress.weeklyGoal.target}{" "}
-                    sessions
+                    {progress.weeklyGoal.sessionsThisWeek} / {progress.weeklyGoal.target} sessions
                   </span>
                   <button
                     type="button"
                     className="goal-edit-btn"
                     aria-label="Edit weekly goal"
+                    title="Edit weekly goal"
                     aria-haspopup="dialog"
                     onClick={() => {
                       setGoalDraft(progress.weeklyGoal.target);
                       setGoalModalOpen(true);
                     }}
                   >
-                    edit
+                    <Pencil size={14} strokeWidth={2} aria-hidden="true" />
                   </button>
                 </div>
-                <div className="goal-bar-track">
+                {/* At least a 4% sliver so an empty week still reads as a progress bar. */}
+                <div
+                  className="goal-bar-track"
+                  role="progressbar"
+                  aria-label="Weekly goal"
+                  aria-valuemin={0}
+                  aria-valuemax={progress.weeklyGoal.target}
+                  aria-valuenow={progress.weeklyGoal.sessionsThisWeek}
+                >
                   <div
                     className="goal-bar-fill"
-                    style={{
-                      transform: `translateX(${
-                        Math.min(
-                          100,
-                          Math.round(
-                            (progress.weeklyGoal.sessionsThisWeek /
-                              progress.weeklyGoal.target) *
-                              100,
-                          ),
-                        ) - 100
-                      }%)`,
-                    }}
+                    style={{ transform: `translateX(${Math.max(4, Math.min(100, Math.round((progress.weeklyGoal.sessionsThisWeek / progress.weeklyGoal.target) * 100))) - 100}%)` }}
                   />
                 </div>
               </div>
             </div>
-            <div className="stat-divider" />
             <div className="stat">
-              <div className="stat-icon">📚</div>
+              <div className="stat-icon" aria-hidden="true">
+                <BookOpen size={20} strokeWidth={2} />
+              </div>
               <div className="stat-body">
                 <div className="stat-value">{progress.totalProblems}</div>
                 <div className="stat-label">Problems all-time</div>
@@ -1099,13 +1128,14 @@ function TutorApp({
 
           <div className="section-title">Classes</div>
           <motion.div
-            className="cards-grid"
+            className="courses-grid"
             variants={gridVariants}
             initial="initial"
             animate="animate"
           >
             {(Object.keys(classes) as CourseKey[]).map((key) => {
               const c = classes[key];
+              const Icon = COURSE_ICON[key];
               return (
                 <motion.button
                   type="button"
@@ -1113,16 +1143,19 @@ function TutorApp({
                   key={key}
                   onClick={() => openClass(key)}
                   variants={cardVariants}
-                  whileHover={{ y: -4 }}
                   whileTap={{ scale: 0.99 }}
                 >
                   {/* Spans throughout: a <button> may only contain phrasing content. */}
-                  <span className="card-icon" aria-hidden="true">{c.icon}</span>
+                  <span className={`card-icon hue-${key}`} aria-hidden="true">
+                    <Icon size={20} strokeWidth={2} />
+                  </span>
                   <span className="card-title">{c.title}</span>
                   <span className="card-desc">{c.desc}</span>
                   <span className="card-meta">
                     <span>{c.units.length} units</span>
-                    <span aria-hidden="true">→</span>
+                    <span aria-hidden="true">
+                      <ArrowRight size={16} strokeWidth={2} />
+                    </span>
                   </span>
                 </motion.button>
               );
@@ -1167,7 +1200,6 @@ function TutorApp({
                   key={unit.id}
                   onClick={() => openUnit(unit)}
                   variants={cardVariants}
-                  whileHover={{ y: -4 }}
                   whileTap={{ scale: 0.99 }}
                 >
                   <span className="card-top">
@@ -1201,9 +1233,6 @@ function TutorApp({
           transition={pageTransition}
         >
           <div className="unit-view-header">
-            <button className="back-btn" onClick={goBackToClass}>
-              ← Back to units
-            </button>
             <div className="unit-tab-bar" role="tablist" aria-label="Study mode">
               {(["chat", "practice"] as UnitView[]).map((v) => (
                 <button
@@ -1372,14 +1401,32 @@ function TutorApp({
                 >
                   Bigger hint
                 </button>
-                <button
-                  className="hint-btn"
-                  onClick={showAnswer}
-                  disabled={isStreaming || hintsUsed < 2}
-                  title={hintsUsed < 2 ? "Try 2 hints first" : "Show the full answer"}
-                >
-                  Show me the answer
-                </button>
+                {hintsUsed < 2 ? (
+                  // Locked on purpose (the hint gate). aria-disabled instead of
+                  // disabled keeps it focusable, so the tooltip works by keyboard,
+                  // and a tap on touch screens explains it with a toast.
+                  <span className="tip-wrap">
+                    <button
+                      type="button"
+                      className="hint-btn locked"
+                      aria-disabled="true"
+                      aria-describedby="answer-lock-tip"
+                      onClick={() =>
+                        showToast(`The answer unlocks after 2 hints (${hintsUsed} of 2 used).`)
+                      }
+                    >
+                      <Lock size={13} strokeWidth={2.25} aria-hidden="true" />
+                      Show me the answer
+                    </button>
+                    <span className="tip" role="tooltip" id="answer-lock-tip">
+                      Unlocks after 2 hints ({hintsUsed} of 2 used)
+                    </span>
+                  </span>
+                ) : (
+                  <button className="hint-btn" onClick={showAnswer} disabled={isStreaming}>
+                    Show me the answer
+                  </button>
+                )}
                 <button
                   className="hint-btn solved"
                   onClick={markSolved}
@@ -1680,15 +1727,19 @@ function TutorApp({
         )}
       </AnimatePresence>
 
-      <footer className="app-footer">
-        <Link href="/privacy">Privacy</Link>
-        <span aria-hidden="true">·</span>
-        <Link href="/terms">Terms</Link>
-        <span aria-hidden="true">·</span>
-        <button type="button" className="footer-link-btn" onClick={() => setDeleteOpen(true)} aria-haspopup="dialog">
-          Delete account
-        </button>
-      </footer>
+      {/* Hidden on the chat screen so it fits in one viewport. */}
+      {!chatLocked && (
+        <footer className="app-footer">
+          <Link href="/privacy">Privacy</Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terms">Terms</Link>
+          <span aria-hidden="true">·</span>
+          <button type="button" className="footer-link-btn" onClick={() => setDeleteOpen(true)} aria-haspopup="dialog">
+            Delete account
+          </button>
+        </footer>
+      )}
+      </div>
 
       <DeleteAccountDialog
         open={deleteOpen}
