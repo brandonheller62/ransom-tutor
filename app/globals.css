@@ -39,7 +39,7 @@
   --on-danger: #ffffff;
 
   /* Bubbles (white text on the user bubble stays above 7:1) */
-  --user-bubble: linear-gradient(135deg, #1f5a3f 0%, #256b4b 100%);
+  --user-bubble: #1f5a3f;
   --tutor-bubble: #f3f7f5;
 
   /* Elevation: cards get --shadow in light mode only */
@@ -50,6 +50,9 @@
 
   /* Text on solid --accent fills (buttons, active pills) */
   --on-accent: #ffffff;
+
+  /* Home page headline */
+  --hero-title: var(--accent-deep);
 
   /* Per-course icon tiles: icon color + tile background */
   --hue-physics: #2563a8;       --hue-physics-bg: #e3edf8;
@@ -77,29 +80,30 @@
    app/layout.tsx: the saved choice if there is one, otherwise the device setting.
    Accent flips to a lighter green so it reads as text on dark surfaces, and
    --on-accent flips to near-black so filled buttons keep their contrast. The user
-   bubble and Send button keep the deep green gradient with white text (5:1). */
+   user bubble keeps the deep solid green with white text (8:1). */
 :root[data-theme="dark"] {
-  --bg: #0d1512;
-  --surface: #16201c;
-  --surface-2: #1e2a25;
-  --surface-3: #24322c;
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1c1c1c;
+  --surface-3: #262626;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.14);
-  --border-hover: rgba(134, 214, 170, 0.35);
+  --border-hover: rgba(58, 148, 104, 0.45);
 
-  --text: #e8f0ec;
-  --text-muted: #9fb0a8; /* 8.2:1 on --bg, 6.6 on --surface-2 */
-  --text-faint: #9fb0a8;
+  --text: #ededed;
+  --text-muted: #a3a3a3; /* 7.8:1 on --bg, 6.7 on --surface-2 */
+  --text-faint: #a3a3a3;
 
-  --accent: #86d6aa; /* 9.7:1 on --surface */
-  --accent-hover: #9fe0bd;
-  --accent-deep: #b8ead0;
-  --accent-soft: rgba(134, 214, 170, 0.12);
-  --accent-soft-2: rgba(134, 214, 170, 0.2);
-  --accent-ring: rgba(134, 214, 170, 0.28);
-  --mint: #4fae84;
-  --mint-light: #2c5c47;
-  --on-accent: #0b1f16; /* 10:1 on --accent */
+  --accent: #3a9468; /* 4.9:1 on --surface, 4.6 on --surface-2 */
+  --accent-hover: #44a575;
+  --accent-deep: #7cc49f;
+  --accent-soft: rgba(58, 148, 104, 0.14);
+  --accent-soft-2: rgba(58, 148, 104, 0.24);
+  --accent-ring: rgba(58, 148, 104, 0.35);
+  --mint: #3a9468;
+  --mint-light: #1f4a36;
+  --on-accent: #0a0a0a; /* 5.3:1 on --accent */
+  --hero-title: var(--text);
 
   --success-bg: #152a1f;
   --success-border: #2b5a40;
@@ -108,7 +112,7 @@
   --danger-border: #6b302b;
   --on-danger: #2a0d0a;
 
-  --tutor-bubble: #1e2a25;
+  --tutor-bubble: #1c1c1c;
 
   /* Flat in dark mode: borders separate surfaces instead of shadows. */
   --shadow-sm: none;
@@ -122,9 +126,9 @@
   --hue-digitalnarrative: #f09ab4; --hue-digitalnarrative-bg: rgba(240, 154, 180, 0.13);
   --hue-advancedml: #b9a1f2;    --hue-advancedml-bg: rgba(185, 161, 242, 0.14);
 
-  --code-bg: #0a110e;
-  --toast-bg: #e8f0ec;
-  --toast-text: #0d1512;
+  --code-bg: #050505;
+  --toast-bg: #ededed;
+  --toast-text: #0a0a0a;
   --toast-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   --backdrop: rgba(0, 0, 0, 0.6);
 
@@ -167,7 +171,7 @@ body {
 .logo:hover { opacity: 0.8; }
 .logo-mark {
   width: 38px; height: 34px; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(140deg, var(--accent-soft) 0%, var(--surface) 100%);
+  background: var(--accent-soft);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
@@ -201,12 +205,12 @@ body {
 .hero h1 {
   font-size: clamp(2.1rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.08;
   margin-bottom: 1rem;
-  color: var(--accent-deep);
+  color: var(--hero-title);
 }
 .hero p { color: var(--text-muted); font-size: 1.08rem; max-width: 580px; margin: 0 auto; }
 
 .section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 1.1rem; display: flex; align-items: center; gap: 0.6rem; }
-.section-title::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+.section-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
 /* ===== Cards ===== */
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1.25rem; }
@@ -239,7 +243,7 @@ body {
 .hue-quantfinance { color: var(--hue-quantfinance); background: var(--hue-quantfinance-bg); }
 .hue-digitalnarrative { color: var(--hue-digitalnarrative); background: var(--hue-digitalnarrative-bg); }
 .hue-advancedml { color: var(--hue-advancedml); background: var(--hue-advancedml-bg); }
-.card-general { background: linear-gradient(140deg, var(--accent-soft) 0%, var(--surface) 100%); border-color: var(--border-strong); }
+.card-general { background: var(--accent-soft); border-color: var(--border-strong); }
 .card-icon-general { background: var(--accent); color: var(--on-accent); font-weight: 700; }
 
 .card-title { display: block; font-size: 1.18rem; font-weight: 650; margin-bottom: 0.4rem; letter-spacing: -0.02em; }
@@ -405,12 +409,10 @@ body {
 .quiz-score-area { margin-left: auto; display: flex; align-items: center; gap: 0.6rem; }
 .quiz-score-label { font-size: 0.85rem; font-weight: 650; color: var(--text); white-space: nowrap; }
 .quiz-score-track { width: 110px; height: 6px; background: var(--surface-3); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
-.quiz-score-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--mint)); border-radius: 999px; transform: translateX(-100%); transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.quiz-score-fill { height: 100%; background: var(--accent); border-radius: 999px; transform: translateX(-100%); transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
 
 .quiz-start-card {
-  background:
-    radial-gradient(600px 300px at 50% -20%, var(--accent-soft) 0%, transparent 70%),
-    var(--surface);
+  background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 4rem 2rem; text-align: center; box-shadow: var(--shadow);
 }
 .quiz-start-card h2 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.6rem; }
@@ -546,7 +548,7 @@ body {
 .recap-tile { background: var(--surface-2); border-radius: 8px; padding: 0.85rem; }
 .recap-tile-value { font-size: 1.4rem; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
 .recap-tile-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.15rem; }
-.recap-mastery-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; background: linear-gradient(135deg, var(--accent-soft) 0%, var(--surface) 100%); border: 1px solid var(--border-strong); border-radius: 8px; margin-bottom: 1.25rem; }
+.recap-mastery-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; background: var(--accent-soft); border: 1px solid var(--border-strong); border-radius: 8px; margin-bottom: 1.25rem; }
 .recap-mastery-delta { font-size: 1.05rem; font-weight: 600; color: var(--accent); }
 .recap-mastery-text { font-size: 0.85rem; color: var(--text); }
 
