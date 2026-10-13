@@ -8,8 +8,15 @@ Your single source of truth for "what's done" and "what's next." Updated 2026-10
 
 **All five milestones are LIVE and verified in production** at
 **https://ransomtutor.vercel.app**: the chat tutor, the practice quizzes
-(MCQ/FRQ + grading), local progress tracking, the polish pass (KaTeX math +
+(MCQ/FRQ + grading), progress tracking, the polish pass (KaTeX math +
 image attachments), and **RAG grounding on the live site**.
+
+**Accounts shipped 2026-10-12** (commit `c0d20ff`): required email + password
+sign-in, progress synced to the account, every chat saved and resumable from a
+**Chats** panel, dark mode, Privacy Policy + Terms of Use with recorded consent,
+and self-serve account deletion. **One open setting:** Supabase → Authentication →
+Sign In / Providers → Email → turn OFF "Confirm email", or new students can't
+finish signing up.
 The model calls run on **Anthropic** (`ANTHROPIC_API_KEY` is set in prod): the
 chat tutor uses **`claude-sonnet-5-5`** (fast + cost-efficient) and quiz generation +
 FRQ grading use **`claude-opus-5-5`** (`lib/llm.ts`, since 2026-08-20). If the
@@ -39,6 +46,7 @@ logs).
 | ✅ | New-format Supabase keys (`sb_secret_` / `sb_publishable_`) |
 | ✅ | Next.js 16 app scaffolded (App Router, TypeScript, Tailwind) |
 | ✅ | Prototype UI ported (`app/page.tsx`, `app/globals.css`, `lib/courses.ts`) — Home → Class → Unit, chat + practice shells |
+| ✅ | Accounts: Supabase Auth, `progress` / `conversations` / `messages` tables + `chat-images` bucket (owner-only RLS), `delete_my_account()` |
 
 ---
 
@@ -55,6 +63,9 @@ more near-duplicate questions within a session, a UI cleanup pass, two MCQ
 rendering fixes (choice D overwritten by explanation text; math delimiters broken
 by the currency guard), and an accessibility pass from a design audit (keyboard
 access, screen-reader announcements, contrast, touch targets, reduced motion).
+On 2026-10-12: user accounts (login required), synced progress, saved chats with a
+history panel to resume them, dark mode, Privacy Policy + Terms of Use, account
+deletion, and a clean lint run. See "Future milestones" below for the details.
 
 
 ### Milestone 1 — Make the chat actually tutor ✅ DONE (live in production)
@@ -68,7 +79,7 @@ The chat tutor is wired end to end and verified responding:
   (`claude-sonnet-5-5`) when `ANTHROPIC_API_KEY` is set, otherwise OpenAI
   (`gpt-5-mini`).
 - ✅ `app/page.tsx` — Send, Enter, hint buttons, "show answer" gate (2 hints),
-  "I solved it", "new problem", Reset, and Export all call the live tutor and
+  "I solved it", "new problem", New chat (was Reset), and Export all call the live tutor and
   render the streamed reply.
 
 **Anthropic is live** in both local dev and production. The OpenAI bridge
@@ -100,9 +111,10 @@ The MCQ / FRQ "Start Practice" flow is wired to the AI and verified end to end.
 > (the hidden reasoning consumed the whole token budget). Keep this in mind if you
 > ever see blank quiz/tutor output on the OpenAI bridge.
 
-### Milestone 3 — Progress ✅ DONE (local to the device)
-Decision: progress lives in the **browser's `localStorage`** (no login / no
-Supabase) — simplest for a single shared device. Implemented in `lib/progress.ts`
+### Milestone 3 — Progress ✅ DONE (synced to the account since 2026-10-12)
+Originally progress lived only in the **browser's `localStorage`** (no login).
+Since accounts shipped, it's stored on the student's account (`progress` table)
+with a per-account localStorage copy for instant loading. Implemented in `lib/progress.ts`
 (types, mastery/streak/week math, load/save) and wired through `app/page.tsx`:
 - **Per-unit mastery rings** on the class screen (was hardcoded 0).
 - **Streak**, **weekly-goal** (editable via a modal), and **all-time problems**
@@ -112,8 +124,9 @@ Supabase) — simplest for a single shared device. Implemented in `lib/progress.
 - Progress is fed by BOTH the chat tutor ("I solved it" = solved, each hint =
   small penalty) AND the quizzes (each MCQ/FRQ counts; MCQ-correct = solved).
 
-> Storage key: `socratic_progress_v1` in localStorage. Clearing browser data
-> resets all progress. It does not sync across devices/browsers (by design).
+> Storage: the account's row in the `progress` table is the source of truth;
+> `socratic_progress_v1:<userId>` in localStorage is a cache, and whichever copy has
+> the newer `updatedAt` wins on load. Clearing browser data no longer loses progress.
 
 ### Milestone 4 — Polish ✅ DONE
 - **KaTeX math rendering** everywhere (chat replies, MCQ/FRQ questions, choices,
@@ -131,7 +144,7 @@ Supabase) — simplest for a single shared device. Implemented in `lib/progress.
 
 ### Milestone 5 — Ship it ✅ DONE (live + RAG verified in production)
 1. ~~`git init` + push to **GitHub**~~ ✅ done — https://github.com/brandonheller62/ransom-tutor (private).
-2. ~~Import the repo into **Vercel**~~ ✅ done — project `socratic-tutor` under the
+2. ~~Import the repo into **Vercel**~~ ✅ done — project `ransom-tutor` under the
    "Brandon's projects" team, auto-deploying from `main`.
 3. ~~**Environment Variables:**~~ ✅ done — set in Vercel → Settings → Environment
    Variables, scoped to **Production**:
@@ -331,6 +344,12 @@ have shipped and are kept here as a record of what was done and where.
 ---
 
 ## 🧹 Housekeeping (do when convenient)
+- [ ] **Turn off "Confirm email"** in Supabase Auth (see "You are here"). Until then
+      sign-ups create an account but never get a session.
+- [ ] **Review the legal pages** with the school or a fellowship advisor, and decide
+      whether `LEGAL_CONTACT_EMAIL` in `lib/legal.ts` should be a separate address
+      (it's shown publicly on `/privacy` and `/terms`).
+- [ ] Rotate the Supabase secret key (it passed through a chat once).
 - [ ] Ingest any updated PDFs. **Ingestion is insert-only** — to *replace* a
       syllabus, delete the old rows first, then re-ingest. (And remember the
       Voyage free-tier limit: 3 requests/min — space runs ~70s apart.)

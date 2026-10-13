@@ -25,7 +25,10 @@ the course syllabi via RAG (retrieval-augmented generation).
 - **Next.js 16** (App Router, React 19, TypeScript) — note: Next 16 has breaking changes
   vs. older docs; see `AGENTS.md` and consult `node_modules/next/dist/docs/` when needed.
 - **Supabase** — `documents` table with `embedding vector(1024)`, `match_documents()`
-  similarity function, HNSW index, RLS (public read, secret-key write).
+  similarity function, HNSW index, RLS (public read, secret-key write). Also **Auth**
+  (email + password, login required) and the per-student tables `progress`,
+  `conversations`, `messages` + private Storage bucket `chat-images`, all owner-only RLS
+  (see "Accounts, saved chats, dark mode" below).
 - **Voyage AI** — `voyage-3.5` embeddings, 1024 dimensions.
 - **Tutor LLM** — dual-provider in `app/api/chat/route.ts`: Anthropic `claude-sonnet-5-5`
   (preferred) or OpenAI `gpt-5-mini` (fallback), chosen by which API key is present.
@@ -44,16 +47,16 @@ OpenAI (`gpt-5-mini`) via `OPENAI_API_KEY`. The Anthropic key IS set in producti
 both paths run on Claude; the OpenAI bridge is the no-code-change fallback. Milestone 2
 (practice quizzes) is also **done**: `app/api/quiz/route.ts` (MCQ/FRQ/grade) +
 `lib/llm.ts` + the interactive quiz UI in `app/page.tsx`. Milestone 3 (progress) is
-**done** too: `lib/progress.ts` is a local-only (browser `localStorage`, key
-`socratic_progress_v1`) engine for streaks, weekly goals, and per-unit mastery, wired
-through `app/page.tsx` (rings, stats bar, goal + recap modals). Since 2026-10-12 login
-is REQUIRED (email + password, Supabase Auth) and progress syncs to the account; saved
-chats + chat history + dark mode shipped the same day (see Accounts below). Milestone 4 (polish) is **done**: KaTeX math rendering via
+**done** too: `lib/progress.ts` is the engine for streaks, weekly goals, and per-unit
+mastery, wired through `app/page.tsx` (rings, stats bar, goal + recap modals). Since
+2026-10-12 (commit `c0d20ff`) login is REQUIRED (email + password, Supabase Auth) and
+progress syncs to the account; saved chats, chat history, dark mode, legal pages, and
+account deletion shipped the same day (see Accounts below). Milestone 4 (polish) is **done**: KaTeX math rendering via
 `app/Markdown.tsx` (react-markdown + remark-math + rehype-katex; KaTeX CSS in
 `app/layout.tsx`) and image attachments (📎 → base64 data URL → vision block) in BOTH the chat tutor
 (`app/api/chat/route.ts`) and the FRQ grader (`app/api/quiz/route.ts` via `lib/llm.ts`),
 sharing `lib/image.ts` (`parseDataUrl`). Milestone 5 (ship it) is **DONE — live and RAG-
-verified in production** at https://ransomtutor.vercel.app (project `socratic-tutor`,
+verified in production** at https://ransomtutor.vercel.app (Vercel project `ransom-tutor`,
 auto-deploys from `main`). All required env vars are set in Vercel (Production) and
 retrieval is confirmed working as of 2026-06-02 (runtime logs clean, no
 `retrieveContext failed`). See `docs/ROADMAP.md` for the authoritative status.
@@ -75,7 +78,8 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
 
 ## Architecture
 
-- `app/page.tsx` — client-side SPA: Home (course cards) → Class (unit cards) →
+- `app/page.tsx` — default export `Home` is the auth gate (sign-in → terms consent →
+  app); `TutorApp` is the client-side SPA: Home (course cards) → Class (unit cards) →
   Unit (chat + practice-quiz tabs). Navigation via `useState`, no router library yet.
   Quiz flow: `prefetchRef` is a one-slot buffer that generates the NEXT question in the
   background as soon as one is shown (keyed by course|unit|mode|difficulty via
@@ -202,7 +206,7 @@ and behavior **blueprint** for the Next.js port. When building features (chat mo
 quizzes, mastery/progress), port the corresponding logic from this file.
 
 All of the prototype's behaviors have now been ported: the tutor modes (`lib/prompts.ts`),
-the MCQ/FRQ quiz flows (`app/api/quiz/route.ts` + the quiz UI), the localStorage progress
+the MCQ/FRQ quiz flows (`app/api/quiz/route.ts` + the quiz UI), the progress
 engine (`lib/progress.ts`), KaTeX rendering (`app/Markdown.tsx`), and image attachments. The
 prototype remains useful as a design/behavior reference.
 
@@ -229,6 +233,9 @@ prototype remains useful as a design/behavior reference.
 In `.env.local` (gitignored). Server-only: `SUPABASE_SECRET_KEY`, `VOYAGE_API_KEY`,
 `ANTHROPIC_API_KEY`. Browser-safe (`NEXT_PUBLIC_`): `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never import a server-only key into client code.
+The live app never needs `SUPABASE_SECRET_KEY`: API routes act as the signed-in student
+(`lib/auth-server.ts`), and account deletion goes through the `delete_my_account()` SQL
+function. Keep it that way; the secret key is for `scripts/ingest.ts` and admin scripts.
 
 ## Commands
 
