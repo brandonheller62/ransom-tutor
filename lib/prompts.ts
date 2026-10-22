@@ -180,7 +180,7 @@ export function getSystemPrompt({
 
   if (mode === "general") {
     return (
-      `You are a helpful course information assistant for ${course.title}. Your job is to answer student questions about the course based on the syllabus information below.\n\n` +
+      `You are a helpful course information assistant for ${course.title}. Your job is to answer student questions about the course based on the retrieved syllabus context below.\n\n` +
       `Guidelines:\n` +
       `- Answer directly and clearly. This is NOT a Socratic interaction.\n` +
       `- Quote specific numbers and policies from the syllabus when relevant.\n` +
@@ -188,7 +188,6 @@ export function getSystemPrompt({
       `- Be friendly and concise. Usually 1-3 sentences unless the question requires more detail.\n` +
       `- Do NOT make up information that is not in the syllabus.` +
       FORMATTING_RULES +
-      `\n\n=== SYLLABUS ===\n${course.syllabus}\n=== END SYLLABUS ===` +
       grounding
     );
   }

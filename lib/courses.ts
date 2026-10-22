@@ -2,9 +2,8 @@
  * lib/courses.ts
  *
  * Course content for the Socratic Tutor, ported from the HTML prototype's
- * `classes` and `starterPromptsByUnit` objects. The `syllabus` text is kept
- * because it feeds the tutor's system prompt later (and overlaps with the RAG
- * content in Supabase).
+ * `classes` and `starterPromptsByUnit` objects. Syllabus text is not kept in
+ * the repo: the tutor gets it from the RAG chunks in Supabase (see lib/retrieve.ts).
  */
 
 import type { Mode } from "./prompts";
@@ -20,7 +19,6 @@ export interface Course {
   icon: string;
   desc: string;
   tagline: string;
-  syllabus: string;
   units: Unit[];
 }
 
@@ -38,7 +36,6 @@ export const classes: Record<CourseKey, Course> = {
     desc: "Algebra-based mechanics covering kinematics, forces, energy, momentum, fluids, and waves.",
     tagline:
       "Newtonian mechanics with rigorous problem-solving and real-world applications.",
-    syllabus: "(Syllabus text removed from the public repo.)",
     units: [
       { id: "p1", title: "Conversions & Measurements", desc: "Units, dimensional analysis, significant figures, and uncertainty." },
       { id: "p2", title: "Vectors and Scalars", desc: "Vector components, addition, and decomposition in 2D." },
@@ -57,7 +54,6 @@ export const classes: Record<CourseKey, Course> = {
     icon: "◎",
     desc: "Python-based data analysis, visualization, and machine learning with real-world datasets.",
     tagline: "From pandas and plotting to scikit-learn and capstone projects.",
-    syllabus: "(Syllabus text removed from the public repo.)",
     units: [
       { id: "d1", title: "Unit 1: Intro to Data Science Principles", desc: "Foundational concepts, the data science workflow, and Python basics." },
       { id: "d2", title: "Unit 2: Data Analysis with Python", desc: "Pandas, NumPy, data cleaning, and exploratory analysis." },
@@ -75,7 +71,6 @@ export const classes: Record<CourseKey, Course> = {
     icon: "↗",
     desc: "How markets convert uncertainty into prices: portfolio theory, valuation, derivatives, and machine learning on financial data.",
     tagline: "Finance as an applied mathematical discipline, from DCF models to AI trading strategies.",
-    syllabus: "(Syllabus text removed from the public repo.)",
     units: [
       { id: "q1", title: "Financial Instruments & Markets", desc: "The language of finance: markets, market sectors, trading, and reporting." },
       { id: "q2", title: "Funding a Business", desc: "Equity, bonds, loans, venture capital, and private equity; cost of capital, dilution, seniority, and leverage." },
@@ -91,7 +86,6 @@ export const classes: Record<CourseKey, Course> = {
     icon: "✎",
     desc: "Critical analysis of video games and interactive storytelling, from game studies theory to building your own Twine fiction.",
     tagline: "How the affordances of digital media reshape the spectrum of narrative expression.",
-    syllabus: "(Syllabus text removed from the public repo.)",
     units: [
       { id: "n1", title: "Game Studies", desc: "Close-reading interactive media: affordances, critical frameworks from Murray, Bogost, and Anthropy, and the video essay." },
       { id: "n2", title: "Interactive Fiction", desc: "Designing and building a branching Twine story: worldbuilding, player agency, immersion, and scope." },
@@ -102,7 +96,6 @@ export const classes: Record<CourseKey, Course> = {
     icon: "⟡",
     desc: "From reproducible data pipelines and supervised learning to ensembles, NLP, LLM internals, and a human-centered capstone.",
     tagline: "Hands-on ML and generative AI: build, tune, explain, and ship portfolio-ready projects.",
-    syllabus: "(Syllabus text removed from the public repo.)",
     units: [
       { id: "m1", title: "Unit 1: ML Primer & Data Pipeline", desc: "Reproducible data workflows, EDA, pandas/NumPy, and scikit-learn pipelines." },
       { id: "m2", title: "Unit 2: Core Supervised Algorithms", desc: "Linear and logistic regression, kNN, decision trees, cross-validation, and evaluation metrics." },
