@@ -78,32 +78,33 @@
 
 /* Dark theme. data-theme is set before first paint by the script in
    app/layout.tsx: the saved choice if there is one, otherwise the device setting.
-   Accent flips to a lighter green so it reads as text on dark surfaces, and
-   --on-accent flips to near-black so filled buttons keep their contrast. The user
-   user bubble keeps the deep solid green with white text (8:1). */
+   Surfaces are a deep green-black rather than neutral, so the identity survives
+   the switch. Accent flips to a lighter green so it reads as text on dark
+   surfaces, and --on-accent flips to near-black so filled buttons keep their
+   contrast. The user bubble keeps the deep solid green with white text (8:1). */
 :root[data-theme="dark"] {
-  --bg: #0a0a0a;
-  --surface: #141414;
-  --surface-2: #1c1c1c;
-  --surface-3: #262626;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --border-hover: rgba(58, 148, 104, 0.45);
+  --bg: #0b110e;
+  --surface: #121a16;
+  --surface-2: #18231e;
+  --surface-3: #203029;
+  --border: rgba(200, 235, 215, 0.09);
+  --border-strong: rgba(200, 235, 215, 0.16);
+  --border-hover: rgba(61, 154, 108, 0.5);
 
-  --text: #ededed;
-  --text-muted: #a3a3a3; /* 7.8:1 on --bg, 6.7 on --surface-2 */
-  --text-faint: #a3a3a3;
+  --text: #e5ece8;
+  --text-muted: #9fb1a8; /* 8.5:1 on --bg, 7.2 on --surface-2 */
+  --text-faint: #9fb1a8;
 
-  --accent: #3a9468; /* 4.9:1 on --surface, 4.6 on --surface-2 */
-  --accent-hover: #44a575;
+  --accent: #3d9a6c; /* 5.1:1 on --surface, 4.65 on --surface-2 */
+  --accent-hover: #47ab7a;
   --accent-deep: #7cc49f;
-  --accent-soft: rgba(58, 148, 104, 0.14);
-  --accent-soft-2: rgba(58, 148, 104, 0.24);
-  --accent-ring: rgba(58, 148, 104, 0.35);
-  --mint: #3a9468;
+  --accent-soft: rgba(61, 154, 108, 0.14);
+  --accent-soft-2: rgba(61, 154, 108, 0.24);
+  --accent-ring: rgba(61, 154, 108, 0.35);
+  --mint: #3d9a6c;
   --mint-light: #1f4a36;
-  --on-accent: #0a0a0a; /* 5.3:1 on --accent */
-  --hero-title: var(--text);
+  --on-accent: #0b110e; /* 5.5:1 on --accent */
+  --hero-title: var(--accent-deep);
 
   --success-bg: #152a1f;
   --success-border: #2b5a40;
@@ -112,7 +113,7 @@
   --danger-border: #6b302b;
   --on-danger: #2a0d0a;
 
-  --tutor-bubble: #1c1c1c;
+  --tutor-bubble: #18231e;
 
   /* Flat in dark mode: borders separate surfaces instead of shadows. */
   --shadow-sm: none;
@@ -126,14 +127,18 @@
   --hue-digitalnarrative: #f09ab4; --hue-digitalnarrative-bg: rgba(240, 154, 180, 0.13);
   --hue-advancedml: #b9a1f2;    --hue-advancedml-bg: rgba(185, 161, 242, 0.14);
 
-  --code-bg: #050505;
-  --toast-bg: #ededed;
-  --toast-text: #0a0a0a;
+  --code-bg: #060a08;
+  --toast-bg: #e5ece8;
+  --toast-text: #0b110e;
   --toast-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   --backdrop: rgba(0, 0, 0, 0.6);
 
   color-scheme: dark;
 }
+
+/* Headings speak in a serif (the same voice as the RE monogram); everything a
+   student reads or operates stays in Inter. */
+:root { --font-display: var(--font-serif), 'Newsreader', Georgia, 'Times New Roman', serif; }
 
 body {
   font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -155,6 +160,8 @@ body {
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card:focus-visible { outline-offset: 3px; }
 ::selection { background: var(--accent-soft-2); color: var(--accent-deep); }
+html { scrollbar-color: var(--border-strong) transparent; accent-color: var(--accent); }
+textarea, input { caret-color: var(--accent); }
 
 /* Visually hidden but read by screen readers. */
 .sr-only {
@@ -175,7 +182,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
-  font-family: 'Times New Roman', Georgia, serif; font-size: 1.4rem; font-weight: 700; line-height: 1; letter-spacing: -0.06em;
+  font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; line-height: 1; letter-spacing: -0.06em;
 }
 .logo-mark .r-letter { color: var(--accent); }
 .logo-mark .e-letter { color: var(--mint); }
@@ -203,14 +210,31 @@ body {
 /* ===== Hero ===== */
 .hero { text-align: center; padding: 2.5rem 0 3.25rem; }
 .hero h1 {
-  font-size: clamp(2.1rem, 5vw, 3rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.08;
+  font-family: var(--font-display); text-wrap: balance;
+  font-size: clamp(2.3rem, 5.5vw, 3.4rem); font-weight: 600; letter-spacing: -0.025em; line-height: 1.05;
   margin-bottom: 1rem;
   color: var(--hero-title);
 }
 .hero p { color: var(--text-muted); font-size: 1.08rem; max-width: 580px; margin: 0 auto; }
 
-.section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 1.1rem; display: flex; align-items: center; gap: 0.6rem; }
+.section-title { font-family: inherit; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 1.1rem; display: flex; align-items: center; gap: 0.6rem; }
 .section-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.section-note { font-size: 0.85rem; color: var(--text-muted); margin: -0.5rem 0 1.25rem; max-width: 70ch; }
+
+/* ===== Home: "Continue" row between the stats and the class list ===== */
+.resume-card {
+  display: flex; align-items: center; gap: 1rem; width: 100%;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  padding: 1.1rem 1.25rem; box-shadow: var(--shadow); cursor: pointer; margin: -1rem 0 2.25rem;
+  font: inherit; color: inherit; text-align: left; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.resume-card:hover { border-color: var(--border-hover); box-shadow: var(--shadow-hover); }
+.resume-card .card-icon { margin-bottom: 0; flex-shrink: 0; }
+.resume-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.resume-unit { font-size: 1.15rem; font-weight: 650; letter-spacing: -0.015em; }
+.resume-meta { font-size: 0.85rem; color: var(--text-muted); }
+.resume-go { display: inline-flex; align-items: center; gap: 0.4rem; background: var(--accent); color: var(--on-accent); font-weight: 650; font-size: 0.9rem; padding: 0.6rem 1rem; border-radius: 10px; flex-shrink: 0; transition: background 0.15s; }
+.resume-card:hover .resume-go { background: var(--accent-hover); }
 
 /* ===== Cards ===== */
 .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1.25rem; }
@@ -254,7 +278,7 @@ body {
 .card:hover .card-meta span:last-child { transform: translateX(3px); }
 
 .page-header { margin-bottom: 2.25rem; }
-.page-header h2 { font-size: clamp(1.7rem, 4vw, 2.1rem); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.5rem; }
+.page-header h1 { font-family: var(--font-display); font-size: clamp(1.9rem, 4.5vw, 2.5rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 0.5rem; text-wrap: balance; }
 .page-header p { color: var(--text-muted); font-size: 1.02rem; }
 
 .back-btn { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 1.5rem; cursor: pointer; transition: color 0.15s, gap 0.2s; background: none; border: none; padding: 0; font-family: inherit; }
@@ -283,12 +307,18 @@ body {
 .reset-btn { background: transparent; border: 1px solid transparent; color: var(--text-faint); padding: 0.32rem 0.6rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .reset-btn:hover { background: var(--surface-2); color: var(--text-muted); }
 
-.mode-controls { padding: 0.5rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
-.mode-group { display: flex; align-items: center; gap: 0.4rem; }
-.control-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); font-weight: 700; margin-right: 0.25rem; }
-.mode-btn, .diff-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 0.32rem 0.75rem; border-radius: 999px; font-size: 0.78rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.18s; white-space: nowrap; flex-shrink: 0; }
-.mode-btn:hover, .diff-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.mode-btn.active, .diff-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.mode-controls { padding: 0.55rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; gap: 1rem; align-items: center; }
+
+/* Compact native select dressed as a pill: "Mode  Socratic Tutor ▾". Native, so
+   keyboard, screen readers, and phone pickers all work without custom code. */
+.select-pill { position: relative; display: inline-flex; align-items: center; gap: 0.45rem; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 0 0.7rem 0 0.8rem; height: 34px; color: var(--text); transition: border-color 0.15s; cursor: pointer; flex-shrink: 0; }
+.select-pill:hover { border-color: var(--border-hover); }
+.select-pill:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.select-pill-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; }
+.select-pill select { appearance: none; -webkit-appearance: none; background: transparent; border: none; outline: none; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--text); padding-right: 1.1rem; cursor: pointer; }
+.select-pill select:focus-visible { outline: none; }
+.select-pill select option { background: var(--surface); color: var(--text); }
+.select-pill svg { position: absolute; right: 0.65rem; pointer-events: none; color: var(--text-muted); }
 
 .chat-container > .messages { flex: 1; min-height: 0; overflow-y: auto; padding: 1.75rem 1.5rem; display: flex; flex-direction: column; gap: 1.1rem; scroll-behavior: smooth;
   /* Top fade so older messages read as scrolled away, not sliced off. */
@@ -328,17 +358,23 @@ body {
 .starter-chip { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 0.42rem 0.85rem; border-radius: 999px; font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.18s; }
 .starter-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
 
-.hint-controls { padding: 0.75rem 1.5rem 0.5rem; background: transparent; display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.hint-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.18s; }
+.hint-controls { padding: 0.75rem 1.5rem 0.5rem; background: transparent; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+/* Hints and the answer on the left; finishing a problem on the right. */
+.hint-controls-end { display: flex; gap: 0.5rem; margin-left: auto; }
+.hint-count { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 600; }
+.hint-btn { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.18s; }
 .hint-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
 .hint-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 /* "Show me the answer" stays focusable while locked (aria-disabled), so the
    tooltip explaining when it unlocks works by keyboard as well as hover. */
-.hint-btn.locked { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--surface-2); color: var(--text-muted); border-style: dashed; cursor: help; }
+.hint-btn.locked { background: var(--surface-2); color: var(--text-muted); border-style: dashed; cursor: help; }
 .hint-btn.locked:hover { transform: none; border-color: var(--border-strong); color: var(--text-muted); background: var(--surface-2); }
-.tip-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
-.tip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--toast-bg); color: var(--toast-text); font-size: 0.75rem; font-weight: 500; line-height: 1.3; padding: 0.4rem 0.65rem; border-radius: 6px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 5; }
-.tip-wrap:hover .tip, .tip-wrap:focus-within .tip { opacity: 1; }
+
+/* A failed reply: says what happened and offers the same turn again. */
+.chat-error { align-self: flex-start; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; max-width: min(70ch, 92%); background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--text); border-radius: var(--radius); padding: 0.7rem 0.9rem; font-size: 0.9rem; }
+.chat-error p { flex: 1; min-width: 12rem; }
+.retry-btn { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); border-radius: var(--radius-sm); padding: 0.4rem 0.75rem; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: border-color 0.15s; }
+.retry-btn:hover { border-color: var(--accent); color: var(--accent); }
 /* Calm success style — positive, but quieter than the primary Send action. */
 .hint-btn.solved { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-soft-2); box-shadow: none; }
 .hint-btn.solved:hover:not(:disabled) { background: var(--accent-soft-2); border-color: var(--accent); color: var(--accent-deep); transform: translateY(-1px); }
@@ -351,12 +387,12 @@ body {
 .attach-btn:hover { border-color: var(--accent); color: var(--accent); }
 .send-btn { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); padding: 0 1.6rem; height: 46px; border-radius: 12px; font-family: inherit; font-size: 0.92rem; font-weight: 650; letter-spacing: 0.01em; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
 .send-btn:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
-/* Empty input: a quiet neutral button (muted text on --surface-2 is 4.56:1). */
-.send-btn:disabled { background: var(--surface-2); color: var(--text-muted); border-color: var(--border); cursor: not-allowed; }
+/* Empty input: still reads as the primary action, just resting. */
+.send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ===== Image attachments (Milestone 4) ===== */
-.attach-btn { height: 46px; width: 46px; flex-shrink: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); font-size: 1.15rem; cursor: pointer; transition: border 0.18s, background 0.18s; display: flex; align-items: center; justify-content: center; }
-.attach-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--surface); }
+.attach-btn { height: 46px; width: 46px; flex-shrink: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text-muted); cursor: pointer; transition: border 0.18s, background 0.18s; display: flex; align-items: center; justify-content: center; }
+.attach-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--surface); color: var(--accent); }
 .attach-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .attach-preview { margin: 0 1.5rem 0.5rem; position: relative; display: inline-block; width: fit-content; }
 .attach-preview img { max-height: 120px; max-width: 220px; border-radius: 10px; border: 1px solid var(--border); display: block; }
@@ -391,18 +427,29 @@ body {
 .ring-fill { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
 .ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); }
 .ring-label.complete { color: var(--accent); }
-.last-visited { display: block; font-size: 0.75rem; color: var(--text-faint); margin-top: 0.85rem; font-weight: 500; }
+/* margin-top: auto pins it to the card bottom so it lines up across a row. */
+.last-visited { display: block; font-size: 0.75rem; color: var(--text-faint); margin-top: auto; padding-top: 0.85rem; font-weight: 500; }
+.cards-grid .card-desc { margin-bottom: 0; }
+
+/* ===== Unit header: which unit this is, what it covers, how far along ===== */
+.unit-head { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 1rem; }
+.unit-head-icon { margin-bottom: 0; flex-shrink: 0; }
+.unit-head-text { flex: 1; min-width: 0; }
+.unit-title { font-family: var(--font-display); font-size: clamp(1.4rem, 3vw, 1.75rem); font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; }
+.unit-covers { font-size: 0.88rem; color: var(--text-muted); margin-top: 0.15rem; max-width: 75ch; }
+.unit-head-mastery { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; flex-shrink: 0; cursor: help; }
+.unit-head-mastery-label { font-size: 0.68rem; font-weight: 600; color: var(--text-muted); }
 
 /* ===== Unit view tab bar ===== */
-.unit-view-header { display: flex; align-items: center; margin-bottom: 1rem; gap: 0.75rem; }
-.unit-tab-bar { display: flex; background: var(--surface-3); border: 1px solid var(--border); border-radius: 11px; padding: 0.28rem; gap: 0.25rem; }
+.unit-view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 0.75rem; }
+.unit-tab-bar { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; padding: 0.28rem; gap: 0.25rem; }
 .unit-tab { background: transparent; border: none; padding: 0.45rem 1.15rem; border-radius: 8px; font-family: inherit; font-size: 0.875rem; font-weight: 550; color: var(--text-muted); cursor: pointer; transition: all 0.2s; }
 .unit-tab.active { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-sm); }
 .unit-tab:hover:not(.active) { color: var(--text); }
 
 /* ===== Practice Quiz ===== */
 .quiz-topbar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.75rem; flex-wrap: wrap; }
-.quiz-pill-group { display: flex; background: var(--surface-3); border: 1px solid var(--border); border-radius: 9px; padding: 0.22rem; gap: 0.22rem; }
+.quiz-pill-group { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 0.22rem; gap: 0.22rem; }
 .quiz-pill-btn { background: transparent; border: none; padding: 0.35rem 0.85rem; border-radius: 7px; font-family: inherit; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.18s; letter-spacing: 0.01em; }
 .quiz-pill-btn.active { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
 .quiz-pill-btn:hover:not(.active) { color: var(--text); }
@@ -415,9 +462,13 @@ body {
   background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 4rem 2rem; text-align: center; box-shadow: var(--shadow);
 }
-.quiz-start-card h2 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.6rem; }
+.quiz-start-card h2 { font-family: var(--font-display); font-size: 1.85rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 0.6rem; }
+.quiz-start-card .quiz-error { margin: 0 auto 2rem; }
+.quiz-summary-score { font-size: 1.15rem !important; color: var(--text) !important; margin-bottom: 0.5rem !important; font-variant-numeric: tabular-nums; }
+.quiz-summary-score strong { font-size: 1.6rem; color: var(--accent); }
+.quiz-summary-actions { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; align-items: center; }
 .quiz-start-card p { color: var(--text-muted); font-size: 0.97rem; max-width: 400px; margin: 0 auto 2rem; }
-.quiz-begin-btn { background: var(--accent); color: var(--on-accent); border: none; padding: 0.85rem 2.3rem; border-radius: 12px; font-family: inherit; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.18s, transform 0.18s, box-shadow 0.18s; box-shadow: var(--shadow-accent); }
+.quiz-begin-btn { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--accent); color: var(--on-accent); border: none; padding: 0.85rem 2.3rem; border-radius: 12px; font-family: inherit; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.18s, transform 0.18s, box-shadow 0.18s; box-shadow: var(--shadow-accent); }
 .quiz-begin-btn:hover { background: var(--accent-hover); transform: translateY(-2px); }
 .quiz-begin-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
@@ -455,12 +506,12 @@ body {
 .quiz-feedback p:first-child { margin-top: 0; }
 .quiz-feedback.correct { background: var(--success-bg); border: 1px solid var(--success-border); }
 .quiz-feedback.incorrect { background: var(--danger-bg); border: 1px solid var(--danger-border); }
-.quiz-feedback-verdict { font-weight: 700; margin-bottom: 0.4rem; font-size: 0.95rem; }
+.quiz-feedback-verdict { display: flex; align-items: center; gap: 0.4rem; font-weight: 700; margin-bottom: 0.4rem; font-size: 0.95rem; }
 .quiz-feedback.correct .quiz-feedback-verdict { color: var(--accent); }
 .quiz-feedback.incorrect .quiz-feedback-verdict { color: var(--danger); }
 
 .quiz-frq-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.5rem; display: block; }
-.quiz-frq-textarea { width: 100%; padding: 0.85rem 1rem; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 0.87rem; resize: vertical; min-height: 150px; outline: none; background: var(--surface); color: var(--text); transition: border-color 0.15s; line-height: 1.6; }
+.quiz-frq-textarea { width: 100%; padding: 0.85rem 1rem; border: 1.5px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 0.95rem; resize: vertical; min-height: 150px; outline: none; background: var(--surface); color: var(--text); transition: border-color 0.15s; line-height: 1.6; }
 .quiz-frq-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
 .quiz-frq-feedback { margin-top: 1.25rem; padding: 1.25rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem; line-height: 1.7; animation: fadeIn 0.2s ease; }
 .quiz-frq-feedback strong { color: var(--accent); }
@@ -468,8 +519,13 @@ body {
 .quiz-frq-feedback p:last-child { margin-bottom: 0; }
 .quiz-frq-feedback .katex-display { margin: 0.6rem 0; }
 
-.quiz-action-row { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; }
-.quiz-submit-btn, .quiz-next-btn { background: var(--accent); color: var(--on-accent); border: none; padding: 0.65rem 1.4rem; border-radius: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+.quiz-action-row { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; flex-wrap: wrap; }
+/* The way back into Socratic help sits first, apart from Finish / Next. */
+.talk-btn { display: inline-flex; align-items: center; gap: 0.4rem; margin-right: auto; background: var(--accent-soft); color: var(--accent-deep); border: 1px solid var(--accent-soft-2); padding: 0.6rem 1rem; border-radius: 8px; font: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.talk-btn:hover { background: var(--accent-soft-2); border-color: var(--accent); }
+.quiz-finish-btn { background: transparent; border: 1px solid var(--border-strong); color: var(--text); padding: 0.65rem 1.1rem; border-radius: 8px; font: inherit; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s; }
+.quiz-finish-btn:hover { border-color: var(--text-muted); }
+.quiz-submit-btn, .quiz-next-btn { display: inline-flex; align-items: center; gap: 0.4rem; background: var(--accent); color: var(--on-accent); border: none; padding: 0.65rem 1.4rem; border-radius: 8px; font-family: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
 .quiz-submit-btn:hover:not(:disabled), .quiz-next-btn:hover:not(:disabled) { background: var(--accent-hover); }
 .quiz-submit-btn:disabled, .quiz-next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .quiz-error { margin-top: 1rem; color: var(--danger); font-size: 0.9rem; }
@@ -496,6 +552,15 @@ body {
   .breadcrumbs .crumb:not(:first-child), .breadcrumbs span:not(.sep) { overflow: hidden; text-overflow: ellipsis; }
 
   .hero { padding: 1.5rem 0 2.25rem; }
+  .resume-card { flex-wrap: wrap; gap: 0.75rem; padding: 1rem; }
+  .resume-card .ring-wrap { display: none; }
+  .resume-go { width: 100%; justify-content: center; }
+
+  /* Unit header: title only; the chat below needs the height. */
+  .unit-head { margin-bottom: 0.6rem; gap: 0.7rem; }
+  .unit-covers, .unit-head-mastery-label { display: none; }
+  .unit-head .ring-wrap { width: 40px; height: 40px; }
+  .unit-title { font-size: 1.25rem; }
 
   /* Stats bar: stacked stats don't need the vertical desktop dividers. */
   .stats-bar { grid-template-columns: 1fr; }
@@ -510,10 +575,9 @@ body {
 
   /* Chat: every control strip becomes a single horizontally-scrollable row so the
      conversation, not the chrome, gets the screen. */
-  .mode-controls { padding: 0.5rem 1rem; gap: 0.4rem 1rem; }
-  .control-label { display: none; }
-  .mode-group { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
-  .mode-group::-webkit-scrollbar { display: none; }
+  .mode-controls { padding: 0.5rem 1rem; gap: 0.5rem; }
+  .select-pill-label { display: none; }
+  .hint-controls-end { margin-left: 0; }
   .chat-container > .messages { padding: 1.1rem 1rem; }
   .message { max-width: 90%; }
   .starter-prompts, .hint-controls {
@@ -529,6 +593,7 @@ body {
   .input-area textarea, .quiz-frq-textarea, .goal-input, .auth-input { font-size: 16px; }
 
   .quiz-topbar { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+  .talk-btn { margin-right: 0; width: 100%; justify-content: center; }
   .quiz-score-area { margin-left: 0; }
   .quiz-score-track { width: 90px; }
   .quiz-card { padding: 1.4rem 1.1rem; }
@@ -541,7 +606,7 @@ body {
 
 .modal-backdrop { position: fixed; inset: 0; background: var(--backdrop); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
 .modal { background: var(--surface); border-radius: 14px; max-width: 440px; width: 100%; padding: 1.75rem; box-shadow: 0 20px 50px rgba(15,35,30,0.2); }
-.modal h3 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 0.35rem; }
+.modal h3 { font-family: var(--font-display); font-size: 1.45rem; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 0.35rem; }
 .modal p.modal-sub { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem; }
 
 .recap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem; }
@@ -551,6 +616,7 @@ body {
 .recap-mastery-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; background: var(--accent-soft); border: 1px solid var(--border-strong); border-radius: 8px; margin-bottom: 1.25rem; }
 .recap-mastery-delta { font-size: 1.05rem; font-weight: 600; color: var(--accent); }
 .recap-mastery-text { font-size: 0.85rem; color: var(--text); }
+.recap-note { font-size: 0.8rem; color: var(--text-muted); margin: -0.5rem 0 1.25rem; }
 
 .modal-actions { display: flex; gap: 0.6rem; justify-content: flex-end; }
 .modal-btn { padding: 0.55rem 1rem; border-radius: 8px; font-family: inherit; font-size: 0.88rem; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: all 0.15s; }
@@ -565,13 +631,19 @@ body {
 .auth-theme { position: absolute; top: 1rem; right: 1rem; }
 .auth-card { width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 2.25rem 2rem 1.75rem; }
 .auth-brand { display: flex; align-items: center; gap: 0.6rem; font-size: 1.1rem; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 1.75rem; }
-.auth-title { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.03em; color: var(--accent-deep); margin-bottom: 0.4rem; }
+.auth-title { font-family: var(--font-display); font-size: 1.8rem; font-weight: 600; letter-spacing: -0.02em; color: var(--accent-deep); margin-bottom: 0.4rem; }
 .auth-sub { color: var(--text-muted); font-size: 0.92rem; margin-bottom: 1.5rem; }
 .auth-form { display: flex; flex-direction: column; }
 .auth-label { font-size: 0.8rem; font-weight: 600; color: var(--text); margin-bottom: 0.35rem; }
 .auth-input { width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); font-family: inherit; font-size: 0.95rem; outline: none; margin-bottom: 1rem; transition: border-color 0.15s, box-shadow 0.15s, background 0.15s; }
 .auth-input:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 4px var(--accent-ring); }
 .auth-hint { font-size: 0.78rem; color: var(--text-faint); margin: -0.6rem 0 1rem; }
+.auth-hint-after { margin: 0.6rem 0 0; text-align: center; }
+
+/* First paint while the saved session is checked: the mark appears only if it runs long. */
+.auth-wrap.boot { background: var(--bg); }
+.boot-mark { width: 52px; height: 46px; font-size: 1.9rem; opacity: 0; animation: bootIn 0.4s ease-out 0.35s forwards, calmPulse 1.8s ease-in-out 0.75s infinite; }
+@keyframes bootIn { to { opacity: 1; } }
 .auth-error { color: var(--danger); background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: var(--radius-sm); padding: 0.55rem 0.75rem; font-size: 0.85rem; margin-bottom: 1rem; }
 .auth-info { color: var(--accent-deep); background: var(--accent-soft); border: 1px solid var(--accent-soft-2); border-radius: var(--radius-sm); padding: 0.55rem 0.75rem; font-size: 0.85rem; margin-bottom: 1rem; }
 .auth-submit { background: var(--accent); color: var(--on-accent); border: none; height: 46px; border-radius: 12px; font-family: inherit; font-size: 0.95rem; font-weight: 650; cursor: pointer; transition: background 0.15s; margin-top: 0.25rem; }
@@ -607,7 +679,7 @@ body {
 .legal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
 .legal-top .back-btn { margin-bottom: 0; text-decoration: none; }
 .legal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 2.25rem 2.25rem 2rem; line-height: 1.7; }
-.legal h1 { font-size: clamp(1.6rem, 4vw, 2rem); font-weight: 700; letter-spacing: -0.03em; color: var(--accent-deep); }
+.legal h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 2.3rem); font-weight: 600; letter-spacing: -0.02em; color: var(--accent-deep); }
 .legal-date { color: var(--text-faint); font-size: 0.85rem; margin: 0.25rem 0 1.5rem; }
 .legal h2 { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; margin: 1.75rem 0 0.5rem; }
 .legal p, .legal li { font-size: 0.95rem; color: var(--text); }
@@ -621,7 +693,7 @@ body {
 .drawer-backdrop { position: fixed; inset: 0; background: var(--backdrop); z-index: 100; display: flex; justify-content: flex-end; }
 .drawer { width: min(420px, 100%); height: 100%; background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow-hover); display: flex; flex-direction: column; outline: none; }
 .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1rem 1rem 1.25rem; border-bottom: 1px solid var(--border); }
-.drawer-head h2 { font-size: 1.1rem; font-weight: 650; letter-spacing: -0.01em; }
+.drawer-head h2 { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; letter-spacing: -0.01em; }
 .drawer-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem 1.5rem; }
 .drawer-foot { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); font-size: 0.78rem; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-empty { text-align: center; color: var(--text-muted); padding: 2.5rem 0.5rem; font-size: 0.92rem; }
@@ -636,10 +708,15 @@ body {
 .history-item.active { border-color: var(--accent); background: var(--accent-soft); }
 .history-open { flex: 1; min-width: 0; text-align: left; background: none; border: none; padding: 0.6rem 0.75rem; font-family: inherit; color: inherit; cursor: pointer; border-radius: 10px; display: flex; flex-direction: column; gap: 0.1rem; }
 .history-open:disabled { cursor: progress; }
-.history-title { font-size: 0.9rem; font-weight: 550; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Two lines before truncating: chat titles are usually the student's first question. */
+.history-title { font-size: 0.9rem; font-weight: 550; color: var(--text); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; }
 .history-meta { font-size: 0.75rem; color: var(--text-faint); }
-.history-actions { display: flex; gap: 0.1rem; padding-right: 0.35rem; opacity: 0.75; transition: opacity 0.15s; }
-.history-item:hover .history-actions, .history-item:focus-within .history-actions { opacity: 1; }
+.history-actions { display: flex; gap: 0.1rem; padding-right: 0.35rem; transition: opacity 0.15s; }
+/* With a mouse, Rename/Delete wait for hover or focus; touch screens always show them. */
+@media (hover: hover) and (pointer: fine) {
+  .history-actions { opacity: 0; }
+  .history-item:hover .history-actions, .history-item:focus-within .history-actions { opacity: 1; }
+}
 .history-action { background: transparent; border: 1px solid transparent; color: var(--text-muted); font-family: inherit; font-size: 0.75rem; font-weight: 500; padding: 0.3rem 0.5rem; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .history-action:hover { background: var(--surface-2); color: var(--text); }
 .history-action.primary { background: var(--accent); color: var(--on-accent); }
@@ -653,8 +730,9 @@ body {
    Keyed to the input device, not the width: school iPads are wide but still
    tapped with fingers. 44px is the minimum comfortable tap size. */
 @media (pointer: coarse) {
-  .mode-btn, .diff-btn, .quiz-pill-btn, .starter-chip, .hint-btn, .reset-btn,
-  .unit-tab, .back-btn, .goal-edit-btn, .modal-btn, .quiz-submit-btn, .quiz-next-btn {
+  .quiz-pill-btn, .starter-chip, .hint-btn, .reset-btn,
+  .unit-tab, .back-btn, .goal-edit-btn, .modal-btn, .quiz-submit-btn, .quiz-next-btn,
+  .select-pill, .talk-btn, .quiz-finish-btn, .retry-btn {
     min-height: 44px;
   }
   .goal-edit-btn, .reset-btn { min-width: 44px; }
@@ -671,7 +749,7 @@ body {
 @keyframes rowFade { from { --row-fade: 32px; } to { --row-fade: 0px; } }
 @media (max-width: 640px) {
   @supports (animation-timeline: scroll()) {
-    .mode-group, .starter-prompts, .hint-controls {
+    .starter-prompts, .hint-controls {
       mask-image: linear-gradient(to right, #000 calc(100% - var(--row-fade)), transparent);
       animation: rowFade linear both;
       animation-timeline: scroll(self inline);
@@ -693,4 +771,5 @@ body {
   .card:hover .card-meta span:last-child,
   .starter-chip:hover, .hint-btn:hover:not(:disabled), .hint-btn.solved:hover:not(:disabled),
   .send-btn:hover:not(:disabled), .quiz-begin-btn:hover { transform: none; }
+  .boot-mark { animation: bootIn 0.01ms linear 0.35s forwards, calmPulse 1.8s ease-in-out 0.75s infinite; }
 }

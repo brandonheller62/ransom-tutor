@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { X } from "lucide-react";
 import { classes, type CourseKey } from "@/lib/courses";
 import { relativeTime } from "@/lib/progress";
 import {
@@ -143,7 +144,7 @@ export function HistoryPanel({ open, onClose, email, activeId, onOpenChat, onDel
             <div className="drawer-head">
               <h2 id="history-title">Your chats</h2>
               <button type="button" className="header-icon-btn" onClick={onClose} aria-label="Close chat history">
-                <span aria-hidden="true">✕</span>
+                <X size={18} strokeWidth={2} aria-hidden="true" />
               </button>
             </div>
 

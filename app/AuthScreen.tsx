@@ -117,7 +117,7 @@ export function AuthScreen({ notice = null }: { notice?: string | null }) {
         <p className="auth-sub">
           {signingUp
             ? "Your progress and chats are saved to your account, so they follow you to any device."
-            : "Sign in to pick up where you left off."}
+            : "A Socratic tutor for your Ransom classes: hints that help you work problems out, not answers to copy. Sign in to pick up where you left off."}
         </p>
 
         <form onSubmit={onSubmit} className="auth-form" noValidate>
@@ -169,6 +169,9 @@ export function AuthScreen({ notice = null }: { notice?: string | null }) {
           >
             {busy ? "One moment..." : signingUp ? "Create account" : "Sign in"}
           </button>
+          {signingUp && !agreed && email.trim() && password && (
+            <p className="auth-hint auth-hint-after">Check the box above to create your account.</p>
+          )}
         </form>
 
         <p className="auth-switch">

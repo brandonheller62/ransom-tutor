@@ -4,18 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import type { Session } from "@supabase/supabase-js";
 import {
+  ArrowLeft,
   ArrowRight,
   Atom,
   BookOpen,
   BrainCircuit,
   ChartScatter,
+  Check,
+  ChevronDown,
   Feather,
   Flame,
   History,
   Lock,
+  MessageCircleQuestion,
+  Paperclip,
   Pencil,
+  RotateCcw,
   Target,
   TrendingUp,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { Markdown } from "./Markdown";
@@ -50,6 +57,7 @@ import {
   getUnitStats,
   computeMastery,
   defaultUnitStats,
+  MASTERY_EXPLAINER,
   todayKey,
   daysBetween,
   relativeTime,
@@ -66,12 +74,13 @@ const pageVariants = {
 const pageTransition = { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const };
 
 // Staggered grid: container reveals children one after another.
+// Kept short: cards should be readable almost at once, not after a parade.
 const gridVariants = {
-  animate: { transition: { staggerChildren: 0.06 } },
+  animate: { transition: { staggerChildren: 0.03 } },
 };
 const cardVariants = {
-  initial: { opacity: 0, y: 14 },
-  animate: { opacity: 1, y: 0, transition: pageTransition },
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const } },
 };
 
 // Line icon per course; the tile color comes from the matching .hue-<key> class.
@@ -88,7 +97,33 @@ type Mode = "tutor" | "checker" | "teach";
 type Difficulty = "warmup" | "standard" | "challenge";
 type UnitView = "chat" | "practice";
 type PracticeMode = "mcq" | "frq";
-type QuizPhase = "idle" | "loading" | "active" | "grading";
+type QuizPhase = "idle" | "loading" | "active" | "grading" | "done";
+
+const MODE_LABEL: Record<Mode, string> = {
+  tutor: "Socratic Tutor",
+  checker: "Solution Checker",
+  teach: "Teach the Tutor",
+};
+const DIFFICULTY_LABEL: Record<Difficulty, string> = {
+  warmup: "Warm-up",
+  standard: "Standard",
+  challenge: "Challenge",
+};
+
+// Server and network failures, reworded for a student. Short client-side
+// messages from our own routes (4xx with an error string) pass through.
+function friendlyApiError(status: number, serverMsg?: string | null): string {
+  if (status === 413) return "That image is too large to send. Try a smaller photo.";
+  if (status === 429) return "The tutor is busy right now. Wait a moment, then try again.";
+  if (status >= 400 && status < 500 && serverMsg) return serverMsg;
+  return "The tutor couldn't respond just now. Check your connection, then try again.";
+}
+
+// fetch() rejects with a TypeError when the network is down; give it the same wording.
+function errorText(err: unknown): string {
+  if (err instanceof TypeError) return friendlyApiError(0);
+  return err instanceof Error ? err.message : friendlyApiError(0);
+}
 type ChoiceLetter = "A" | "B" | "C" | "D";
 
 interface ChatMessage {
@@ -145,7 +180,7 @@ interface RecapData {
   mastery: number;
 }
 
-// Mastery ring shown on unit cards. Static (0%) until the progress engine is wired.
+// Mastery ring on unit cards and the unit header.
 function Ring({ percent }: { percent: number }) {
   const r = 18;
   const c = 2 * Math.PI * r;
@@ -165,7 +200,7 @@ function Ring({ percent }: { percent: number }) {
         />
       </svg>
       <span className={"ring-label" + (complete ? " complete" : "")} aria-hidden="true">
-        {complete ? "✓" : percent}
+        {complete ? <Check size={16} strokeWidth={2.75} /> : percent}
       </span>
     </span>
   );
@@ -184,7 +219,18 @@ export default function Home() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  if (session === undefined) return <div className="auth-wrap" aria-busy="true" />;
+  // Checking for a saved session usually takes a moment. The mark fades in only
+  // if it runs long, so a fast load never flashes it.
+  if (session === undefined) {
+    return (
+      <div className="auth-wrap boot" aria-busy="true" aria-label="Loading Ransom Tutor">
+        <span className="logo-mark boot-mark" aria-hidden="true">
+          <span className="r-letter">R</span>
+          <span className="e-letter">E</span>
+        </span>
+      </div>
+    );
+  }
   if (!session) return <AuthScreen notice={notice} />;
   const agreedVersion = session.user.user_metadata?.terms_version as string | undefined;
   if (agreedVersion !== LEGAL_VERSION) {
@@ -217,7 +263,6 @@ function TutorApp({
   const [difficulty, setDifficulty] = useState<Difficulty>("standard");
   const [unitView, setUnitView] = useState<UnitView>("chat");
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("mcq");
-  const [practiceDiff, setPracticeDiff] = useState<Difficulty>("standard");
 
   const [input, setInput] = useState("");
   const [toast, setToast] = useState<string | null>(null);
@@ -227,7 +272,14 @@ function TutorApp({
   const [isStreaming, setIsStreaming] = useState(false);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  // A problem is "open" from the student's first question until they mark it
+  // solved or reveal the answer. Hint, solve, and reveal only work while it is,
+  // so none of them can be pressed against an empty chat.
+  const [problemOpen, setProblemOpen] = useState(false);
+  // The turn that failed, kept so "Try again" can resend it unchanged.
+  const [chatError, setChatError] = useState<{ history: ChatMessage[]; message: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Practice-quiz state (Milestone 2).
@@ -379,12 +431,12 @@ function TutorApp({
       problemsAttempted: 0,
       problemsSolved: 0,
       hintsUsed: 0,
-      startMastery: getUnitStats(progress, courseKey, unit.id).masteryScore,
+      startMastery: computeMastery(getUnitStats(progress, courseKey, unit.id)),
       counted: false,
     };
   }
 
-  // Record one attempted problem (from chat "I solved it", or a quiz answer).
+  // Record one attempted problem (chat "I solved it" or a revealed answer, or a quiz answer).
   function recordProblem(solved: boolean) {
     const sess = sessionRef.current;
     if (!sess) return;
@@ -402,7 +454,7 @@ function TutorApp({
     });
   }
 
-  // Record one hint used (lightly lowers mastery; tracked per session for recap).
+  // Record one hint used (shown in the recap; never lowers mastery).
   function recordHintProgress() {
     const sess = sessionRef.current;
     if (!sess) return;
@@ -461,8 +513,8 @@ function TutorApp({
         attempted: sess.problemsAttempted,
         solved: sess.problemsSolved,
         hints: sess.hintsUsed,
-        delta: stats.masteryScore - sess.startMastery,
-        mastery: stats.masteryScore,
+        delta: computeMastery(stats) - sess.startMastery,
+        mastery: computeMastery(stats),
       });
     }
   }
@@ -531,15 +583,17 @@ function TutorApp({
     setView("class");
   }
 
-  function openUnit(unit: Unit) {
-    if (!currentClass) return;
+  // key defaults to the open class; Home's "Continue" card passes its own.
+  function openUnit(unit: Unit, key: CourseKey | null = currentClass) {
+    if (!key) return;
     endSession(false); // close any stale session before switching units
+    setCurrentClass(key);
     setCurrentUnit(unit);
     setUnitView("chat");
     setInput("");
     resetChat();
     resetQuiz();
-    startSession(currentClass, unit);
+    startSession(key, unit);
     setView("unit");
   }
 
@@ -568,11 +622,11 @@ function TutorApp({
     resetQuiz();
   }
 
-  // Difficulty changes keep the current question but re-aim the prefetch buffer
-  // so "Next" serves a question at the new level.
-  function switchPracticeDiff(d: Difficulty) {
-    if (d === practiceDiff) return;
-    setPracticeDiff(d);
+  // One difficulty for chat and practice. Changing it keeps the current question
+  // but re-aims the prefetch buffer so "Next" serves a question at the new level.
+  function switchDifficulty(d: Difficulty) {
+    if (d === difficulty) return;
+    setDifficulty(d);
     prefetchRef.current = null;
     if (quizPhase === "active" && currentClass && currentUnit) {
       prefetchQuestion({ course: currentClass, unitId: currentUnit.id, mode: practiceMode, difficulty: d });
@@ -594,6 +648,8 @@ function TutorApp({
     setHintsUsed(0);
     setIsStreaming(false);
     setPendingImage(null);
+    setProblemOpen(false);
+    setChatError(null);
   }
 
   // Reopen a saved chat exactly as it was left: same unit, mode, and difficulty.
@@ -617,6 +673,7 @@ function TutorApp({
     resetQuiz();
     setConversationId(c.id);
     setMessages(saved);
+    setProblemOpen(c.mode === "tutor" && saved.length > 0);
     setMode(c.mode);
     setDifficulty(c.difficulty);
     setInput("");
@@ -635,22 +692,28 @@ function TutorApp({
     if (id === conversationId) setConversationId(null);
   }
 
-  // Switching chat modes clears the conversation: a Socratic hint trail makes
-  // no sense once you jump into Solution Checker or role-reverse into Teach.
+  // Switching chat modes starts a new chat: a Socratic hint trail makes no sense
+  // once you jump into Solution Checker or role-reverse into Teach. The old chat
+  // is already saved, so say where it went instead of asking first.
   function handleModeChange(newMode: Mode) {
     if (newMode === mode) return;
+    const hadChat = messages.length > 0;
     setMode(newMode);
     resetChat();
+    if (hadChat) showToast(`New ${MODE_LABEL[newMode]} chat. Your last one is saved in Chats.`);
   }
 
   const course = currentClass ? classes[currentClass] : null;
 
   // Send a turn to the tutor and stream the reply into the last assistant bubble.
-  async function callTutor(history: ChatMessage[]) {
+  // `fresh` is for a caller that just reset the chat in the same tick, when this
+  // render's mode and conversationId are still the old chat's.
+  async function callTutor(history: ChatMessage[], fresh?: { mode: Mode }) {
     if (!currentClass || !currentUnit) return;
     const epoch = chatEpochRef.current;
     const current = () => chatEpochRef.current === epoch; // false once the chat is replaced
     setIsStreaming(true);
+    setChatError(null);
     // Add an empty assistant message we'll fill as tokens stream in.
     setMessages([...history, { role: "assistant", content: "" }]);
 
@@ -659,14 +722,15 @@ function TutorApp({
         messages: history,
         course: currentClass,
         unitId: currentUnit.id,
-        mode,
+        mode: fresh?.mode ?? mode,
         difficulty,
-        conversationId,
+        conversationId: fresh ? null : conversationId,
       });
 
+      if (res.status === 401) return; // apiPost already signed out
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => null);
-        throw new Error(err?.error ?? `Request failed (${res.status})`);
+        throw new Error(friendlyApiError(res.status, err?.error));
       }
       // The first reply of a new chat carries the id the server saved it under.
       const savedId = res.headers.get("X-Conversation-Id");
@@ -683,12 +747,11 @@ function TutorApp({
       }
     } catch (err) {
       if (!current()) return;
-      const msg = err instanceof Error ? err.message : "Something went wrong.";
-      setMessages([
-        ...history,
-        { role: "assistant", content: `Sorry, the tutor could not respond. ${msg}` },
-      ]);
-      showToast(msg);
+      // Drop the empty bubble and keep the turn, so "Try again" resends it as-is.
+      const msg = errorText(err);
+      setMessages(history);
+      setChatError({ history, message: msg });
+      announce(msg);
     } finally {
       if (current()) setIsStreaming(false);
     }
@@ -712,7 +775,30 @@ function TutorApp({
     const history = [...messages, userMsg];
     setInput("");
     setPendingImage(null);
+    if (mode === "tutor") setProblemOpen(true);
     void callTutor(history);
+  }
+
+  // Starter chips fill the box rather than send, so the student can edit first;
+  // focus moves there so that's obvious.
+  function pickStarter(prompt: string) {
+    setInput(prompt);
+    textareaRef.current?.focus();
+  }
+
+  // From a quiz result into a fresh Socratic chat about that exact question.
+  function talkItThrough(question: string, studentAnswer: string, correctAnswer?: string) {
+    if (isStreaming) return;
+    let text =
+      "I'm working on this practice question and I want to understand it. " +
+      "Help me reason through it step by step instead of just telling me.\n\n" +
+      `Question: ${question}\n\nMy answer: ${studentAnswer}`;
+    if (correctAnswer) text += `\n\nThe correct answer is: ${correctAnswer}`;
+    setUnitView("chat");
+    setMode("tutor");
+    resetChat();
+    setProblemOpen(true);
+    void callTutor([{ role: "user", content: text }], { mode: "tutor" });
   }
 
   // Validate, downscale, and read a chosen image file into a base64 data URL,
@@ -777,13 +863,18 @@ function TutorApp({
     );
   }
 
+  // A revealed answer still counts as a problem worked through, but not solved.
   function showAnswer() {
-    if (isStreaming) return;
+    if (isStreaming || !problemOpen) return;
+    setProblemOpen(false);
+    setHintsUsed(0);
+    recordProblem(false);
     sendUserText("Show me the answer, with a clear step-by-step explanation.");
   }
 
   function markSolved() {
-    if (isStreaming) return;
+    if (isStreaming || !problemOpen) return;
+    setProblemOpen(false);
     setHintsUsed(0);
     recordProblem(true);
     sendUserText("I solved it! Can you confirm my approach was right and give me a quick takeaway?");
@@ -792,6 +883,7 @@ function TutorApp({
   function newProblem() {
     if (isStreaming) return;
     setHintsUsed(0);
+    setProblemOpen(true);
     sendUserText("Give me a new problem for this unit at the current difficulty.");
   }
 
@@ -831,8 +923,8 @@ function TutorApp({
       difficulty: q.difficulty,
       recent: recentQuestionsRef.current,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) throw new Error(friendlyApiError(res.status, data?.error));
     return q.mode === "mcq" ? (data.mcq as McqData) : (data.frq as string);
   }
 
@@ -861,7 +953,7 @@ function TutorApp({
       course: currentClass,
       unitId: currentUnit.id,
       mode: practiceMode,
-      difficulty: practiceDiff,
+      difficulty,
     };
     const epoch = quizEpochRef.current;
     setQuizError(null);
@@ -902,11 +994,27 @@ function TutorApp({
       prefetchQuestion(q);
     } catch (err) {
       if (quizEpochRef.current !== epoch) return;
-      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      const msg = errorText(err);
       setQuizError(msg);
       setQuizPhase("idle");
-      showToast(msg);
+      announce(msg);
     }
+  }
+
+  // Close out a practice run with a summary instead of letting the score just stop.
+  function finishQuiz() {
+    prefetchRef.current = null;
+    setQuizPhase("done");
+    announce(
+      practiceMode === "mcq"
+        ? `Practice finished. ${quizCorrect} of ${quizTotal} correct.`
+        : `Practice finished. ${quizTotal} answers graded.`,
+    );
+  }
+
+  function practiceAgain() {
+    resetQuiz();
+    void fetchQuestion();
   }
 
   function handleMcqChoice(letter: ChoiceLetter) {
@@ -933,37 +1041,45 @@ function TutorApp({
         action: "grade",
         course: currentClass,
         unitId: currentUnit.id,
-        difficulty: practiceDiff,
+        difficulty,
         question: frqQuestion,
         answer: frqAnswer,
         image: frqImage || undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? `Request failed (${res.status})`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) throw new Error(friendlyApiError(res.status, data?.error));
       setFrqFeedback(data.feedback as string);
       announce("Grading complete. Your feedback is below the question.");
       setQuizTotal((t) => t + 1);
       recordProblem(true); // a completed + graded FRQ counts as a solved problem
       setQuizPhase("active");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Something went wrong.";
+      const msg = errorText(err);
       setQuizError(msg);
       setQuizPhase("active");
-      showToast(msg);
+      announce(msg);
     }
   }
 
-  // Score label + progress bar width, computed per mode.
+  // Score label, plus an accuracy bar for multiple choice (free response has no
+  // right/wrong ratio to show, so it gets the count alone).
   const quizScoreLabel =
     practiceMode === "mcq"
       ? `${quizCorrect} / ${quizTotal} correct`
-      : `${quizTotal} completed`;
-  const quizScorePct =
-    practiceMode === "mcq"
-      ? quizTotal > 0
-        ? Math.round((quizCorrect / quizTotal) * 100)
-        : 0
-      : Math.min(100, quizTotal * 20);
+      : `${quizTotal} graded`;
+  const quizScorePct = quizTotal > 0 ? Math.round((quizCorrect / quizTotal) * 100) : 0;
+
+  // The most recently practiced unit, for Home's "Continue" card.
+  const lastStudied = (() => {
+    let best: { key: CourseKey; unit: Unit; at: number } | null = null;
+    for (const key of Object.keys(classes) as CourseKey[]) {
+      for (const unit of classes[key].units) {
+        const at = getUnitStats(progress, key, unit.id).lastVisited;
+        if (at && (!best || at > best.at)) best = { key, unit, at };
+      }
+    }
+    return best;
+  })();
 
   const onHome = view === "home";
   const onClass = view === "class";
@@ -1035,6 +1151,7 @@ function TutorApp({
               className="header-text-btn"
               onClick={() => void signOut()}
               title={`Signed in as ${email}`}
+              aria-label="Sign out"
             >
               Sign out
             </button>
@@ -1064,7 +1181,10 @@ function TutorApp({
           </div>
 
           <div className="stats-bar">
-            <div className="stat" title={`Longest streak: ${progress.streak.longestStreak} days`}>
+            <div
+              className="stat"
+              title={`Longest streak: ${progress.streak.longestStreak} ${progress.streak.longestStreak === 1 ? "day" : "days"}`}
+            >
               <div className="stat-icon" aria-hidden="true">
                 <Flame size={20} strokeWidth={2} />
               </div>
@@ -1126,7 +1246,36 @@ function TutorApp({
             </div>
           </div>
 
-          <div className="section-title">Classes</div>
+          {/* A returning student's most likely next step: back to their last unit. */}
+          {lastStudied && (
+            <button
+              type="button"
+              className="resume-card"
+              onClick={() => openUnit(lastStudied.unit, lastStudied.key)}
+            >
+              {(() => {
+                const Icon = COURSE_ICON[lastStudied.key];
+                return (
+                  <span className={`card-icon hue-${lastStudied.key}`} aria-hidden="true">
+                    <Icon size={20} strokeWidth={2} />
+                  </span>
+                );
+              })()}
+              <span className="resume-text">
+                <span className="resume-unit">{lastStudied.unit.title}</span>
+                <span className="resume-meta">
+                  {classes[lastStudied.key].title} · practiced {relativeTime(lastStudied.at)}
+                </span>
+              </span>
+              <Ring percent={computeMastery(getUnitStats(progress, lastStudied.key, lastStudied.unit.id))} />
+              <span className="resume-go">
+                Continue
+                <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+              </span>
+            </button>
+          )}
+
+          <h2 className="section-title">Classes</h2>
           <motion.div
             className="courses-grid"
             variants={gridVariants}
@@ -1176,13 +1325,15 @@ function TutorApp({
           transition={pageTransition}
         >
           <button className="back-btn" onClick={goHome}>
-            ← Back to classes
+            <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
+            Back to classes
           </button>
           <div className="page-header">
-            <h2>{course.title}</h2>
+            <h1>{course.title}</h1>
             <p>{course.tagline}</p>
           </div>
-          <div className="section-title">Units</div>
+          <h2 className="section-title">Units</h2>
+          <p className="section-note">{MASTERY_EXPLAINER}</p>
           <motion.div
             className="cards-grid"
             variants={gridVariants}
@@ -1207,7 +1358,7 @@ function TutorApp({
                       <span className="card-title">{unit.title}</span>
                       <span className="card-desc">{unit.desc}</span>
                     </span>
-                    <Ring percent={stats.masteryScore} />
+                    <Ring percent={computeMastery(stats)} />
                   </span>
                   <span className="last-visited">
                     {stats.lastVisited
@@ -1232,6 +1383,25 @@ function TutorApp({
           exit="exit"
           transition={pageTransition}
         >
+          <div className="unit-head">
+            {(() => {
+              const Icon = COURSE_ICON[currentClass!];
+              return (
+                <span className={`card-icon unit-head-icon hue-${currentClass}`} aria-hidden="true">
+                  <Icon size={20} strokeWidth={2} />
+                </span>
+              );
+            })()}
+            <div className="unit-head-text">
+              <h1 className="unit-title">{currentUnit.title}</h1>
+              <p className="unit-covers">{currentUnit.desc}</p>
+            </div>
+            <span className="unit-head-mastery" title={MASTERY_EXPLAINER}>
+              <Ring percent={computeMastery(getUnitStats(progress, currentClass!, currentUnit.id))} />
+              <span className="unit-head-mastery-label" aria-hidden="true">Mastery</span>
+            </span>
+          </div>
+
           <div className="unit-view-header">
             <div className="unit-tab-bar" role="tablist" aria-label="Study mode">
               {(["chat", "practice"] as UnitView[]).map((v) => (
@@ -1251,6 +1421,21 @@ function TutorApp({
                 </button>
               ))}
             </div>
+            <label className="select-pill">
+              <span className="select-pill-label">Level</span>
+              <select
+                value={difficulty}
+                onChange={(e) => switchDifficulty(e.target.value as Difficulty)}
+                aria-label="Difficulty"
+              >
+                {(["warmup", "standard", "challenge"] as Difficulty[]).map((d) => (
+                  <option key={d} value={d}>
+                    {DIFFICULTY_LABEL[d]}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} strokeWidth={2.25} aria-hidden="true" />
+            </label>
           </div>
 
           {/* ---------- Chat view ---------- */}
@@ -1262,40 +1447,21 @@ function TutorApp({
               aria-labelledby="unit-tab-chat"
             >
               <div className="mode-controls">
-                <div className="mode-group" role="group" aria-label="Tutor mode">
-                  <span className="control-label" aria-hidden="true">Mode:</span>
-                  {(
-                    [
-                      ["tutor", "Socratic Tutor"],
-                      ["checker", "Solution Checker"],
-                      ["teach", "Teach the Tutor"],
-                    ] as [Mode, string][]
-                  ).map(([m, label]) => (
-                    <button
-                      key={m}
-                      type="button"
-                      aria-pressed={mode === m}
-                      className={"mode-btn" + (mode === m ? " active" : "")}
-                      onClick={() => handleModeChange(m)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="mode-group" role="group" aria-label="Difficulty">
-                  <span className="control-label" aria-hidden="true">Difficulty:</span>
-                  {(["warmup", "standard", "challenge"] as Difficulty[]).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={difficulty === d}
-                      className={"diff-btn" + (difficulty === d ? " active" : "")}
-                      onClick={() => setDifficulty(d)}
-                    >
-                      {d === "warmup" ? "Warm-up" : d === "standard" ? "Standard" : "Challenge"}
-                    </button>
-                  ))}
-                </div>
+                <label className="select-pill">
+                  <span className="select-pill-label">Mode</span>
+                  <select
+                    value={mode}
+                    onChange={(e) => handleModeChange(e.target.value as Mode)}
+                    aria-label="Tutor mode"
+                  >
+                    {(["tutor", "checker", "teach"] as Mode[]).map((m) => (
+                      <option key={m} value={m}>
+                        {MODE_LABEL[m]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} strokeWidth={2.25} aria-hidden="true" />
+                </label>
                 <div className="chat-header-actions">
                   <button className="reset-btn" onClick={exportTranscript}>
                     Export
@@ -1315,6 +1481,7 @@ function TutorApp({
                 aria-label="Conversation with the tutor"
                 aria-busy={isStreaming}
               >
+                {/* The greeting doubles as the explanation of the current mode. */}
                 <div className="message tutor">
                   {mode === "teach" ? (
                     <>
@@ -1326,6 +1493,16 @@ function TutorApp({
                       </p>
                       <p>Start by explaining something, then I&apos;ll dig in.</p>
                     </>
+                  ) : mode === "checker" ? (
+                    <>
+                      <p>
+                        Send me your solution to a <strong>{currentUnit.title}</strong>{" "}
+                        problem, typed or as a photo of your work. I&apos;ll check it
+                        step by step and point to where it goes off track, so you can
+                        fix it yourself.
+                      </p>
+                      <p>Paste the problem and your work below to begin.</p>
+                    </>
                   ) : (
                     <>
                       <p>
@@ -1333,7 +1510,10 @@ function TutorApp({
                         <strong>{currentUnit.title}</strong>. I&apos;ll guide you
                         through problems with hints instead of handing over answers.
                       </p>
-                      <p>Pick a starter prompt below or type a question to begin.</p>
+                      <p>
+                        Ask a question or pick a starter below. Once we&apos;re working a
+                        problem, you can ask for hints; the full answer unlocks after two.
+                      </p>
                     </>
                   )}
                 </div>
@@ -1369,79 +1549,92 @@ function TutorApp({
                     )}
                   </div>
                 ))}
+
+                {chatError && !isStreaming && (
+                  <div className="chat-error" role="alert">
+                    <p>{chatError.message}</p>
+                    <button
+                      type="button"
+                      className="retry-btn"
+                      onClick={() => void callTutor(chatError.history)}
+                    >
+                      <RotateCcw size={14} strokeWidth={2.25} aria-hidden="true" />
+                      Try again
+                    </button>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
               {messages.length === 0 && (
                 <div className="starter-prompts">
-                  {getStarterPrompts(mode, currentUnit).map((p) => (
-                    <button
-                      key={p}
-                      className="starter-chip"
-                      onClick={() => setInput(p)}
-                    >
-                      {p}
-                    </button>
-                  ))}
+                  {getStarterPrompts(mode, currentUnit)
+                    .slice(0, 3)
+                    .map((p) => (
+                      <button key={p} className="starter-chip" onClick={() => pickStarter(p)}>
+                        {p}
+                      </button>
+                    ))}
                 </div>
               )}
 
-              <div className="hint-controls">
-                <button
-                  className="hint-btn"
-                  onClick={() => requestHint("smaller")}
-                  disabled={isStreaming}
-                >
-                  Smaller hint
-                </button>
-                <button
-                  className="hint-btn"
-                  onClick={() => requestHint("bigger")}
-                  disabled={isStreaming}
-                >
-                  Bigger hint
-                </button>
-                {hintsUsed < 2 ? (
-                  // Locked on purpose (the hint gate). aria-disabled instead of
-                  // disabled keeps it focusable, so the tooltip works by keyboard,
-                  // and a tap on touch screens explains it with a toast.
-                  <span className="tip-wrap">
+              {/* Hints belong to a Socratic problem in progress: hidden in the other
+                  modes, and until the student has asked something. */}
+              {mode === "tutor" && messages.length > 0 && (
+                <div className="hint-controls" role="group" aria-label="Problem tools">
+                  <button
+                    className="hint-btn"
+                    onClick={() => requestHint("smaller")}
+                    disabled={isStreaming || !problemOpen}
+                  >
+                    Smaller hint
+                  </button>
+                  <button
+                    className="hint-btn"
+                    onClick={() => requestHint("bigger")}
+                    disabled={isStreaming || !problemOpen}
+                  >
+                    Bigger hint
+                  </button>
+                  {hintsUsed < 2 ? (
+                    // Locked on purpose (the hint gate). aria-disabled instead of
+                    // disabled keeps it focusable, and the label itself says how
+                    // close it is, so nothing depends on hovering.
                     <button
                       type="button"
                       className="hint-btn locked"
                       aria-disabled="true"
-                      aria-describedby="answer-lock-tip"
                       onClick={() =>
-                        showToast(`The answer unlocks after 2 hints (${hintsUsed} of 2 used).`)
+                        showToast(`The answer unlocks after 2 hints. You've used ${hintsUsed}.`)
                       }
                     >
                       <Lock size={13} strokeWidth={2.25} aria-hidden="true" />
+                      Answer unlocks after 2 hints
+                      <span className="hint-count">({hintsUsed}/2)</span>
+                    </button>
+                  ) : (
+                    <button
+                      className="hint-btn"
+                      onClick={showAnswer}
+                      disabled={isStreaming || !problemOpen}
+                    >
                       Show me the answer
                     </button>
-                    <span className="tip" role="tooltip" id="answer-lock-tip">
-                      Unlocks after 2 hints ({hintsUsed} of 2 used)
-                    </span>
+                  )}
+                  <span className="hint-controls-end">
+                    <button
+                      className="hint-btn solved"
+                      onClick={markSolved}
+                      disabled={isStreaming || !problemOpen}
+                    >
+                      <Check size={14} strokeWidth={2.5} aria-hidden="true" />I solved it
+                    </button>
+                    <button className="hint-btn" onClick={newProblem} disabled={isStreaming}>
+                      New problem
+                    </button>
                   </span>
-                ) : (
-                  <button className="hint-btn" onClick={showAnswer} disabled={isStreaming}>
-                    Show me the answer
-                  </button>
-                )}
-                <button
-                  className="hint-btn solved"
-                  onClick={markSolved}
-                  disabled={isStreaming}
-                >
-                  ✓ I solved it
-                </button>
-                <button
-                  className="hint-btn"
-                  onClick={newProblem}
-                  disabled={isStreaming}
-                >
-                  New problem
-                </button>
-              </div>
+                </div>
+              )}
 
               {pendingImage && (
                 <div className="attach-preview">
@@ -1453,7 +1646,7 @@ function TutorApp({
                     title="Remove image"
                     aria-label="Remove image"
                   >
-                    ✕
+                    <X size={12} strokeWidth={2.75} aria-hidden="true" />
                   </button>
                 </div>
               )}
@@ -1473,13 +1666,20 @@ function TutorApp({
                   title="Attach an image (e.g. your handwritten work)"
                   aria-label="Attach an image"
                 >
-                  📎
+                  <Paperclip size={18} strokeWidth={2} aria-hidden="true" />
                 </button>
                 <textarea
+                  ref={textareaRef}
                   aria-label="Message the tutor"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your answer..."
+                  placeholder={
+                    mode === "teach"
+                      ? "Explain an idea..."
+                      : mode === "checker"
+                        ? "Paste your problem and your work..."
+                        : "Ask a question or type your answer..."
+                  }
                   rows={1}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -1510,68 +1710,96 @@ function TutorApp({
                       key={pm}
                       type="button"
                       aria-pressed={practiceMode === pm}
-                      aria-label={pm === "mcq" ? "Multiple choice" : "Free response"}
                       className={"quiz-pill-btn" + (practiceMode === pm ? " active" : "")}
                       onClick={() => switchPracticeMode(pm)}
                     >
-                      {pm.toUpperCase()}
+                      {pm === "mcq" ? "Multiple choice" : "Free response"}
                     </button>
                   ))}
                 </div>
-                <div className="quiz-pill-group" role="group" aria-label="Difficulty">
-                  {(["warmup", "standard", "challenge"] as Difficulty[]).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={practiceDiff === d}
-                      className={"quiz-pill-btn" + (practiceDiff === d ? " active" : "")}
-                      onClick={() => switchPracticeDiff(d)}
-                    >
-                      {d === "warmup" ? "Warm-up" : d === "standard" ? "Standard" : "Challenge"}
-                    </button>
-                  ))}
-                </div>
-                <div className="quiz-score-area">
-                  <span className="quiz-score-label">{quizScoreLabel}</span>
-                  <div className="quiz-score-track">
-                    <div
-                      className="quiz-score-fill"
-                      style={{ transform: `translateX(${quizScorePct - 100}%)` }}
-                    />
+                {quizTotal > 0 && (
+                  <div className="quiz-score-area">
+                    <span className="quiz-score-label">{quizScoreLabel}</span>
+                    {practiceMode === "mcq" && (
+                      <div className="quiz-score-track" aria-hidden="true">
+                        <div
+                          className="quiz-score-fill"
+                          style={{ transform: `translateX(${quizScorePct - 100}%)` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Start card — shown before the first question of a session. */}
               {quizPhase === "idle" && (
                 <div className="quiz-start-card">
-                  <h2>Ready to practice?</h2>
-                  <p>
-                    Test your knowledge with AI-generated {practiceMode.toUpperCase()}{" "}
-                    questions unique to this unit, grounded in your syllabus.
-                  </p>
+                  <h2>{quizError ? "That question didn't load" : "Ready to practice?"}</h2>
+                  {quizError ? (
+                    <p className="quiz-error" role="alert">{quizError}</p>
+                  ) : (
+                    <p>
+                      {practiceMode === "mcq"
+                        ? "Multiple-choice questions written fresh for this unit from your syllabus, with an explanation after each answer."
+                        : "Open questions written fresh for this unit from your syllabus. Type your work or photograph it, and get graded feedback."}
+                    </p>
+                  )}
                   <button className="quiz-begin-btn" onClick={fetchQuestion}>
-                    Start Practice →
+                    {quizError ? "Try again" : quizTotal > 0 ? "Next question" : "Start practice"}
+                    <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
                   </button>
-                  {quizError && <p className="quiz-error">{quizError}</p>}
+                </div>
+              )}
+
+              {/* End-of-run summary. */}
+              {quizPhase === "done" && (
+                <div className="quiz-start-card quiz-summary">
+                  <h2>Practice complete</h2>
+                  <p className="quiz-summary-score">
+                    {practiceMode === "mcq" ? (
+                      <>
+                        <strong>{quizCorrect}</strong> of {quizTotal} correct
+                        {quizTotal > 0 && <> · {quizScorePct}%</>}
+                      </>
+                    ) : (
+                      <>
+                        <strong>{quizTotal}</strong> {quizTotal === 1 ? "answer" : "answers"} graded
+                      </>
+                    )}
+                  </p>
+                  <p>
+                    {practiceMode === "mcq" && quizCorrect < quizTotal
+                      ? "Anything that tripped you up is worth a few minutes with the tutor."
+                      : "Every question counts toward your mastery for this unit."}
+                  </p>
+                  <div className="quiz-summary-actions">
+                    <button className="modal-btn" onClick={() => setUnitView("chat")}>
+                      Back to the tutor
+                    </button>
+                    <button className="quiz-begin-btn" onClick={practiceAgain}>
+                      Practice again
+                      <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* Loading a new question. */}
               {quizPhase === "loading" && (
-                <div className="quiz-loading-state">
-                  <span className="quiz-spinner" />
-                  <p>Generating your {practiceMode.toUpperCase()} question...</p>
+                <div className="quiz-loading-state" role="status">
+                  <span className="quiz-spinner" aria-hidden="true" />
+                  <p>Writing your question...</p>
                 </div>
               )}
 
               {/* MCQ card. */}
-              {practiceMode === "mcq" && mcq && quizPhase !== "loading" && (
+              {practiceMode === "mcq" && mcq && quizPhase === "active" && (
                 <div className="quiz-card">
                   <div className="quiz-q-meta">
-                    <span className="quiz-q-num">Q{quizNum}</span>
+                    <span className="quiz-q-num">Question {quizNum}</span>
                     <span className="quiz-q-dot" />
-                    <span className="quiz-q-topic">{currentUnit.title}</span>
+                    <span className="quiz-q-topic">{DIFFICULTY_LABEL[difficulty]}</span>
                   </div>
                   <Markdown className="quiz-question">{mcq.question}</Markdown>
                   <div className="quiz-choices">
@@ -1605,9 +1833,17 @@ function TutorApp({
                       }
                     >
                       <div className="quiz-feedback-verdict">
-                        {mcqPicked === mcq.correct
-                          ? "✓ Correct!"
-                          : `✗ Incorrect. The answer was ${mcq.correct}.`}
+                        {mcqPicked === mcq.correct ? (
+                          <>
+                            <Check size={16} strokeWidth={2.75} aria-hidden="true" />
+                            Correct
+                          </>
+                        ) : (
+                          <>
+                            <X size={16} strokeWidth={2.75} aria-hidden="true" />
+                            Not quite. The answer was {mcq.correct}.
+                          </>
+                        )}
                       </div>
                       {mcq.explanation && <Markdown>{mcq.explanation}</Markdown>}
                     </div>
@@ -1615,8 +1851,29 @@ function TutorApp({
 
                   {mcqPicked && (
                     <div className="quiz-action-row">
+                      {mcqPicked !== mcq.correct && (
+                        <button
+                          className="talk-btn"
+                          onClick={() =>
+                            talkItThrough(
+                              `${mcq.question}\n\n${(["A", "B", "C", "D"] as ChoiceLetter[])
+                                .map((l) => `${l}) ${mcq.choices[l]}`)
+                                .join("\n")}`,
+                              `${mcqPicked}) ${mcq.choices[mcqPicked]}`,
+                              `${mcq.correct}) ${mcq.choices[mcq.correct]}`,
+                            )
+                          }
+                        >
+                          <MessageCircleQuestion size={16} strokeWidth={2} aria-hidden="true" />
+                          Talk it through with the tutor
+                        </button>
+                      )}
+                      <button className="quiz-finish-btn" onClick={finishQuiz}>
+                        Finish
+                      </button>
                       <button className="quiz-next-btn" onClick={fetchQuestion}>
-                        Next question →
+                        Next question
+                        <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
                       </button>
                     </div>
                   )}
@@ -1624,26 +1881,26 @@ function TutorApp({
               )}
 
               {/* FRQ card. */}
-              {practiceMode === "frq" && frqQuestion && quizPhase !== "loading" && (
+              {practiceMode === "frq" && frqQuestion && (quizPhase === "active" || quizPhase === "grading") && (
                 <div className="quiz-card">
                   <div className="quiz-q-meta">
-                    <span className="quiz-q-num">Q{quizNum}</span>
+                    <span className="quiz-q-num">Question {quizNum}</span>
                     <span className="quiz-q-dot" />
-                    <span className="quiz-q-topic">{currentUnit.title}</span>
+                    <span className="quiz-q-topic">{DIFFICULTY_LABEL[difficulty]}</span>
                   </div>
                   <Markdown className="quiz-question">{frqQuestion}</Markdown>
 
                   {!frqFeedback && (
                     <>
                       <label className="quiz-frq-label" htmlFor="frq-answer">
-                        Your Response
+                        Your answer
                       </label>
                       <textarea
                         id="frq-answer"
                         className="quiz-frq-textarea"
                         value={frqAnswer}
                         onChange={(e) => setFrqAnswer(e.target.value)}
-                        placeholder="Show all work. Include equations, steps, and units... or attach a photo of your handwritten work."
+                        placeholder="Show your work: equations, steps, and units. Or attach a photo of your handwritten work."
                         disabled={quizPhase === "grading"}
                       />
 
@@ -1664,9 +1921,15 @@ function TutorApp({
                             title="Remove image"
                             aria-label="Remove image"
                           >
-                            ✕
+                            <X size={12} strokeWidth={2.75} aria-hidden="true" />
                           </button>
                         </div>
+                      )}
+
+                      {quizError && (
+                        <p className="quiz-error" role="alert">
+                          {quizError} Your answer is still here.
+                        </p>
                       )}
 
                       <div className="quiz-action-row">
@@ -1677,14 +1940,14 @@ function TutorApp({
                           title="Attach a photo of your handwritten work"
                           aria-label="Attach an image"
                         >
-                          📎
+                          <Paperclip size={18} strokeWidth={2} aria-hidden="true" />
                         </button>
                         <button
                           className="quiz-submit-btn"
                           onClick={submitFrq}
                           disabled={quizPhase === "grading"}
                         >
-                          {quizPhase === "grading" ? "Grading..." : "Submit for Grading"}
+                          {quizPhase === "grading" ? "Grading..." : quizError ? "Try again" : "Submit for grading"}
                         </button>
                       </div>
                     </>
@@ -1698,13 +1961,25 @@ function TutorApp({
                       )}
                       <Markdown className="quiz-frq-feedback">{frqFeedback}</Markdown>
                       <div className="quiz-action-row">
+                        <button
+                          className="talk-btn"
+                          onClick={() =>
+                            talkItThrough(frqQuestion, frqAnswer.trim() || "(I attached a photo of my work.)")
+                          }
+                        >
+                          <MessageCircleQuestion size={16} strokeWidth={2} aria-hidden="true" />
+                          Go over it with the tutor
+                        </button>
+                        <button className="quiz-finish-btn" onClick={finishQuiz}>
+                          Finish
+                        </button>
                         <button className="quiz-next-btn" onClick={fetchQuestion}>
-                          Next question →
+                          Next question
+                          <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
                         </button>
                       </div>
                     </>
                   )}
-                  {quizError && <p className="quiz-error">{quizError}</p>}
                 </div>
               )}
             </div>
@@ -1858,16 +2133,17 @@ function TutorApp({
                   <div className="recap-tile-label">Hints used</div>
                 </div>
               </div>
+              {/* Mastery never drops, so this only ever reports progress. */}
               <div className="recap-mastery-row">
-                <div className="recap-mastery-delta">
-                  {recap.delta >= 0 ? "+" : ""}
-                  {recap.delta}
-                </div>
+                {recap.delta > 0 && <div className="recap-mastery-delta">+{recap.delta}</div>}
                 <div className="recap-mastery-text">
-                  Mastery now <strong>{recap.mastery}</strong> / 100
-                  {recap.delta > 0 ? ". Keep it up." : ""}
+                  Mastery {recap.delta > 0 ? "up to" : "at"} <strong>{recap.mastery}</strong> / 100.{" "}
+                  {recap.hints > 0
+                    ? `You used ${recap.hints} ${recap.hints === 1 ? "hint" : "hints"}; that's the tutor working as intended.`
+                    : "Keep it up."}
                 </div>
               </div>
+              <p className="recap-note">{MASTERY_EXPLAINER}</p>
               <div className="modal-actions">
                 <button className="modal-btn primary" onClick={() => setRecap(null)}>
                   Done

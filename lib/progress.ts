@@ -174,14 +174,22 @@ export function getUnitStats(p: Progress, courseKey: string, unitId: string): Un
   return p.units[unitKey(courseKey, unitId)] ?? defaultUnitStats();
 }
 
-/** Mastery heuristic (0-100): rewards attempts + solves, lightly penalizes hint reliance. */
+/**
+ * Mastery heuristic (0-100): rewards problems worked through, and solving them
+ * counts most. Hints never cost anything: asking for one is the behavior the
+ * tutor exists to teach. A revealed answer is recorded as attempted but not
+ * solved, so it earns the attempt credit only. Never decreases.
+ */
 export function computeMastery(stats: UnitStats): number {
   let score = 0;
   score += Math.min(stats.problemsAttempted * 8, 60);
-  score += Math.min(stats.problemsSolved * 6, 30);
-  score -= Math.min(stats.hintsUsed * 1, 15);
+  score += Math.min(stats.problemsSolved * 6, 40);
   return Math.max(0, Math.min(100, Math.round(score)));
 }
+
+/** One-line explanation of mastery, shown wherever the number is. */
+export const MASTERY_EXPLAINER =
+  "Mastery grows with every problem you work through in a unit, and most when you solve it yourself. Hints never lower it.";
 
 /** Human-friendly "last visited" label. */
 export function relativeTime(ts: number): string {
