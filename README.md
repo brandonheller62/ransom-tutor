@@ -76,7 +76,8 @@ AI_Innovation_Fellowship/
 ├── scripts/              # standalone command-line tools (run with tsx)
 │   ├── ingest.ts         #   ingest a PDF into Supabase (extract → chunk → embed)
 │   └── retrieve-test.ts  #   manual test of retrieval
-├── course-materials/     # source PDFs ingested into the RAG store (7 PDFs, 180 chunks)
+├── course-materials/     # RAG source docs, one folder per course label (gitignored)
+│   └── <course>/         #   syllabus/, reference/, notes/<unit-id>-<name>/
 ├── docs/                 # human-facing docs (not shipped)
 │   ├── ROADMAP.md        #   ← what's done and what's next
 │   ├── prototype/        #   the original single-file HTML prototype (design blueprint)
@@ -94,7 +95,8 @@ AI_Innovation_Fellowship/
 |---------|--------------|
 | `npm run dev` | Start the app locally at http://localhost:3000 |
 | `npm run build` | Production build (also type-checks everything) |
-| `npm run ingest -- "<pdf>" --course=<label> --section=<label>` | Ingest a PDF into Supabase |
+| `npm run ingest -- "<pdf>" --course=<label> --section=<label>` | Ingest a PDF (or .md/.txt) into Supabase |
+| `npx tsx scripts/ingest-notes.ts <notes-dir> --course=<label> --replace` | Bulk-ingest a folder of class notes |
 | `npx tsx scripts/retrieve-test.ts "<question>" [course-label]` | Test RAG retrieval from the terminal |
 
 Course labels in Supabase: `physics`, `data-science`, `quant-finance`,
@@ -104,7 +106,7 @@ PDF, and the Investment Instruments deck.
 
 Example ingest:
 ```bash
-npm run ingest -- "./course-materials/Quantitative-Finance-Syllabus.pdf" --course=quant-finance --section=syllabus
+npm run ingest -- "./course-materials/quant-finance/syllabus/Quantitative-Finance-Syllabus.pdf" --course=quant-finance --section=syllabus
 ```
 
 > Heads up: the Voyage account is on the free tier (3 requests/minute), so space

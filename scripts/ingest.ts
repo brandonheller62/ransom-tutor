@@ -1,7 +1,8 @@
 /**
  * scripts/ingest.ts
  *
- * One-shot PDF ingestion for the Socratic Tutor RAG pipeline.
+ * One-shot PDF (or .md/.txt) ingestion for the Socratic Tutor RAG pipeline.
+ * For a whole folder of notes, use scripts/ingest-notes.ts instead.
  *
  * What it does:
  *   1. Reads a PDF from disk and extracts its text.
@@ -165,11 +166,17 @@ async function embedBatch(texts: string[]): Promise<number[][]> {
 
 async function main() {
   console.log(`Reading ${pdfPath} ...`);
-  const buffer = readFileSync(pdfPath);
-  const parser = new PDFParse({ data: buffer });
-  const parsed = await parser.getText();
-  const rawText = parsed.text;
-  await parser.destroy(); // release the parser's worker/resources
+  let rawText: string;
+  if (/\.(md|txt)$/i.test(pdfPath)) {
+    // Plain-text notes (e.g. Markdown transcribed from OneNote): no parsing needed.
+    rawText = readFileSync(pdfPath, "utf8");
+  } else {
+    const buffer = readFileSync(pdfPath);
+    const parser = new PDFParse({ data: buffer });
+    const parsed = await parser.getText();
+    rawText = parsed.text;
+    await parser.destroy(); // release the parser's worker/resources
+  }
 
   const chunks = chunkText(rawText, CHUNK_SIZE, CHUNK_OVERLAP);
   console.log(

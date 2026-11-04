@@ -158,9 +158,17 @@ eats the whole token budget). The chat route's OpenAI streaming branch does the 
   runs ~70s apart or they 429; failures happen before insert, so no partial rows.
   Ingestion is **insert-only**: re-running it on the same PDF duplicates rows, so to
   replace a document delete its rows first (filter on `metadata->>source`).
-  Source PDFs live in `course-materials/`; the store holds 180 chunks across the five
-  courses (physics 19, data-science 12, advanced-ml 39, digital-narrative 36,
-  quant-finance 74).
+  Source docs live in `course-materials/<course>/` (`syllabus/`, `reference/`,
+  `notes/<unit-id>-<name>/`; see its README; physics is `adv-physics-mech/` but still
+  ingests as `--course=physics`); the store holds 295 chunks across the five
+  courses (physics 134 = syllabus 19 + 115 class-note chunks, data-science 12,
+  advanced-ml 39, digital-narrative 36, quant-finance 74). `ingest.ts` also reads
+  `.md`/`.txt`.
+- `scripts/ingest-notes.ts` — bulk-ingests a `notes/` folder (`<unit-id>-<name>/*.md`),
+  section label `"<unit-id> notes"`, batched + spaced for the Voyage free tier.
+  `--replace` deletes that course's existing `% notes` rows first; `--dry-run` counts.
+  Physics notes (2026-11-03) are Markdown transcriptions of the teacher's OneNote
+  Content Library (units p2-p7, p9).
 - `scripts/retrieve-test.ts` — manual retrieval test; takes the question and an optional
   Supabase course label (`physics` default) as args; dynamically imports `retrieve.ts`
   after loading `.env.local` (static ESM imports hoist above dotenv).
