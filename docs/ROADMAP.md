@@ -1,6 +1,6 @@
 # Socratic Tutor — Roadmap
 
-Your single source of truth for "what's done" and "what's next." Updated 2026-10-12.
+Your single source of truth for "what's done" and "what's next." Updated 2026-11-04.
 
 ---
 
@@ -32,6 +32,14 @@ Instruments** deck was ingested on 2026-08-27 (32 chunks, section
 `investment instruments`), so the tutor can ground answers about stocks,
 bonds, options, ETFs, and closed-end funds in the actual class material.
 
+**Advanced Physics now has real class notes** (2026-11-03): 39 notes transcribed
+from the teacher's OneNote Content Library (Vectors, Motion, Forces, Work &
+Energy, Momentum, Fluids) are filed per unit under
+`course-materials/adv-physics-mech/notes/` and ingested as 115 chunks
+(sections `p2 notes` ... `p9 notes`). Physics is now the deepest-grounded course
+(134 chunks), and the tutor can quote the teacher's own methods (e.g. "The Way"
+to solve forces problems).
+
 **Milestone 5 — Ship it is DONE.** The app is deployed to **Vercel**,
 auto-deploying from `main`, with all required env vars set in Production and
 retrieval confirmed working (no more `retrieveContext failed` in the runtime
@@ -41,7 +49,8 @@ logs).
 |------|------|
 | ✅ | Supabase database (documents table, vector(1024), match_documents, HNSW, RLS) |
 | ✅ | Voyage embeddings (voyage-3.5, 1024 dims) |
-| ✅ | Ingestion script (`scripts/ingest.ts`) — all five courses ingested (180 chunks: physics 19, data-science 12, advanced-ml 39, digital-narrative 36, quant-finance 74) |
+| ✅ | Ingestion script (`scripts/ingest.ts`, PDF or .md/.txt) — all five courses ingested (295 chunks: physics 134, data-science 12, advanced-ml 39, digital-narrative 36, quant-finance 74) |
+| ✅ | Bulk class-notes ingestion (`scripts/ingest-notes.ts`, `--replace` / `--dry-run`) — physics notes loaded 2026-11-03 |
 | ✅ | Retrieval helper (`lib/retrieve.ts`) — tested, returns ranked chunks |
 | ✅ | New-format Supabase keys (`sb_secret_` / `sb_publishable_`) |
 | ✅ | Next.js 16 app scaffolded (App Router, TypeScript, Tailwind) |
@@ -65,7 +74,10 @@ by the currency guard), and an accessibility pass from a design audit (keyboard
 access, screen-reader announcements, contrast, touch targets, reduced motion).
 On 2026-10-12: user accounts (login required), synced progress, saved chats with a
 history panel to resume them, dark mode, Privacy Policy + Terms of Use, account
-deletion, and a clean lint run. See "Future milestones" below for the details.
+deletion, and a clean lint run. On 2026-11-03: `course-materials/` reorganized per
+course with a notes folder per unit, Markdown support in the ingest script, a bulk
+notes ingester, and the Advanced Physics class notes loaded (115 chunks). See
+"Future milestones" below for the details.
 
 
 ### Milestone 1 — Make the chat actually tutor ✅ DONE (live in production)
@@ -180,7 +192,26 @@ with a per-account localStorage copy for instant loading. Implemented in `lib/pr
 Ideas captured for future rounds of work. Open items are `[ ]`; `[x]` entries
 have shipped and are kept here as a record of what was done and where.
 
-- [ ] **Real problems from the class** — pull in the actual problems used in
+- [x] **Advanced Physics class notes**: DONE (2026-11-03). The teacher's OneNote
+      Content Library (Vectors, Motion, Forces, Work and Energy, Momentum, Fluids)
+      was read page by page in the browser and transcribed to Markdown, one file per
+      page: 39 notes in `course-materials/adv-physics-mech/notes/<unit-id>-<name>/`
+      (p2 3, p3 8, p4 12, p5 6, p6 4, p7 3 from the Motion section's circular-motion
+      pages, p9 3). Copyrighted worksheets (Pearson TIPERs, Wiley/textbook problems)
+      are paraphrased or summarized, not copied; answers the page didn't show are
+      marked as computed. Loaded with `scripts/ingest-notes.ts` as 115 chunks,
+      sections `"<unit-id> notes"`; retrieval verified. Gaps: no OneNote material for
+      p1 (Conversions), p8 (SHM), p10 (Waves), or the gravitation half of p7.
+      The physics folder is named `adv-physics-mech/` (room for another physics
+      class) but still ingests as `--course=physics`.
+- [ ] **Class notes for the other four courses** (on hold: as of 2026-11-04 none of
+      them has substantial notes). If notes appear, use the same pipeline: drop them
+      (PDF or `.md`) into `course-materials/<course>/notes/<unit-id>-<name>/`, then
+      `npx tsx scripts/ingest-notes.ts ./course-materials/<course>/notes --course=<label> --replace`.
+- [ ] **Fill the physics gaps**: notes for p1, p8, p10, and gravitation (p7), plus
+      the student's own section of the notebook if wanted.
+- [ ] **Real problems from the class** (partly unblocked: the physics notes now
+      hold ~40 worked class problems the quiz prompts could use as exemplars) — pull in the actual problems used in
       class as exemplars, then have the tutor/quizzes generate *new* questions
       modeled on those (same style and difficulty). Don't just serve the class
       problems verbatim — use them to calibrate the type and difficulty of the
@@ -348,7 +379,6 @@ have shipped and are kept here as a record of what was done and where.
 - [ ] **Review the legal pages** with the school or a fellowship advisor, and decide
       whether `LEGAL_CONTACT_EMAIL` in `lib/legal.ts` should be a separate address
       (it's shown publicly on `/privacy` and `/terms`).
-- [ ] Rotate the Supabase secret key (it passed through a chat once).
 - [ ] Ingest any updated PDFs. **Ingestion is insert-only** — to *replace* a
       syllabus, delete the old rows first, then re-ingest. (And remember the
       Voyage free-tier limit: 3 requests/min — space runs ~70s apart.)
@@ -356,5 +386,7 @@ have shipped and are kept here as a record of what was done and where.
   # 1) delete old rows for a course
   node --input-type=module -e 'import{config}from"dotenv";import{createClient}from"@supabase/supabase-js";config({path:".env.local",quiet:true});const sb=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SECRET_KEY);const{error,count}=await sb.from("documents").delete({count:"exact"}).eq("metadata->>course","data-science");console.log(error?error.message:`deleted ${count}`)'
   # 2) re-ingest
-  npx tsx scripts/ingest.ts "./course-materials/Syllabus.pdf" --course=data-science --section=syllabus
+  npx tsx scripts/ingest.ts "./course-materials/data-science/syllabus/Syllabus.pdf" --course=data-science --section=syllabus
+  # class notes: one command per course, safe to re-run (--replace clears old note rows)
+  npx tsx scripts/ingest-notes.ts ./course-materials/adv-physics-mech/notes --course=physics --replace
   ```
